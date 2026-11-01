@@ -70,7 +70,7 @@ import Testing
 
 @Test func sonyCatalogPreservesOriginalThreeProfilesAlongsideExpansion() throws {
     let catalog=try ModelCatalog(),sony=catalog.models.filter { $0.family == .sony }
-    #expect(sony.count == 7 && catalog.models.count == 228 && catalog.models.filter { [.oppo,.vivo,.huawei,.xiaomi,.edifier].contains($0.family) }.count == 209)
+    #expect(sony.count == 7 && catalog.models.count == 229 && catalog.models.filter { [.oppo,.vivo,.huawei,.xiaomi,.edifier].contains($0.family) }.count == 210)
     #expect(catalog.model(productID:nil,name:"Sony WF-1000XM5")?.singleBattery == false)
     #expect(catalog.model(productID:nil,name:"WH-1000XM5")?.singleBattery == true)
     #expect(catalog.model(productID:nil,name:"WH-CH720N")?.singleBattery == true)

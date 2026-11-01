@@ -34,7 +34,7 @@ Check battery levels, switch noise modes, adjust sound and manage connected devi
 | OPPO / OnePlus / realme | Battery, noise control, EQ, spatial and gaming audio, connected devices |
 | vivo / iQOO | Battery, noise control, EQ, spatial and gaming audio, connected devices |
 | HUAWEI | Battery, noise control, EQ, custom EQ, connected devices |
-| Xiaomi / Redmi | Family detection and battery; low latency requires valid state readback |
+| Xiaomi / Redmi | Buds 4 Pro: battery/charging, noise, EQ, dual connection, gestures, spatial audio, wear; other models: family detection and battery; low latency requires valid state readback |
 | EDIFIER | Battery and noise control for supported SPP families |
 | Samsung | Galaxy Buds2 / Buds2 Pro / Buds4 Pro: battery, noise control and preset EQ; touch lock on Buds2/2 Pro and ANC strength on Buds4 Pro |
 | Google | Pixel Buds Pro / Pro 2: battery, noise control and five EQ presets |

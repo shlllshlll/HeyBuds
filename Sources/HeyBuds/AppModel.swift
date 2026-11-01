@@ -246,13 +246,26 @@ func L(_ chinese:String,_ english:String) -> String { UserDefaults.standard.stri
                 } catch {
                     guard !Task.isCancelled, self.connectionToken == token else { return }
                     self.session?.close(); self.session=nil
-                    errors.append("\(kind): \(error.localizedDescription)")
-                    self.history.append("\(kind) connection: \(error.localizedDescription)")
+                    let message=error.localizedDescription
+                    errors.append(AppModel.connectionFailureMessage(kind:kind,error:error))
+                    self.history.append("\(kind) connection: \(message)")
                 }
             }
             guard !Task.isCancelled, self.connectionToken == token else { return }
             self.phase="idle"; self.error=errors.joined(separator:"\n"); self.revision += 1; self.onStatusChange?()
             self.scheduleReconnect()
+        }
+    }
+    /// Connection errors are matched by type, not by their English text, so the
+    /// guidance can be reworded or translated without changing detection.
+    static func connectionFailureMessage(kind:String,error:Error) -> String {
+        guard let failure=error as? TransportFailure else { return "\(kind): \(error.localizedDescription)" }
+        switch failure {
+        case .timedOut:
+            return L("控制通道没有在预期时间内建立：耳机可能正被手机端耳机 App 占用，也可能不在范围内或上一次连接尚未结束。请确认后重试。",
+                     "The control channel did not open in time: the earbud app on your phone may still hold it, the earbuds may be out of range, or a previous attempt may still be settling. Check and try again.")
+        case .unavailable:
+            return "\(kind): \(failure.localizedDescription)"
         }
     }
     private func cancelRetry() {

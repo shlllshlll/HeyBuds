@@ -52,6 +52,12 @@ HeyBuds is distributed under **GPL-3.0-or-later**. See LICENSE.
 - Upstream license: PolyForm Noncommercial 1.0.0.
 - Used as a visual/information-architecture reference only. No source code or assets from that project are included. Shared Bluetooth protocol constants describe interoperability, not a copied implementation.
 
+## Xiaomi MMA references
+
+- [XiaomiTWS](https://github.com/web1n/android_packages_apps_XiaomiTWS) — Apache-2.0. Used as a reference for MMA config IDs and in-ear/gesture/find/model field layouts. The Swift implementation is independent; no source code is copied.
+- [TWS-Pods-PC](https://github.com/Zhaoyi-ya/TWS-Pods-PC) — GPL-3.0. Used only to cross-check the Xiaomi MMA frame layout and config semantics; no source code is copied.
+- These references establish protocol facts, not macOS hardware compatibility. Buds 4 Pro compatibility was verified separately on a physical device.
+
 No affiliation with OPPO, OnePlus, realme, vivo, iQOO, Huawei, Xiaomi, Redmi, Edifier, Sony or Apple. The app icon combines the original blue gradient background with Apple's `airpods.pro` SF Symbol, the same system asset used by the menu bar. SF Symbols and system materials are provided by macOS.
 
 ## Samsung

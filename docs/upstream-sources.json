@@ -1,5 +1,5 @@
 {
-  "checkedDate": "2026-10-26",
+  "checkedDate": "2026-11-01",
   "upstreamProjects": [
     {
       "name": "OppoPodsManager",
@@ -364,6 +364,33 @@
         "src/MagicBuds.Presentation/Headsets/PixelBudsHeadset.cs": "3a6c71a871428a188ecd6d3105fb5861002af6102625fdabbfdb7c5a1b63ded1",
         "docs/protocol/notes.md": "afeddd32a0a564216e643cb7281aa700cbc9017ab42ae8002e2004518c707ff7"
       }
+    },
+    {
+      "name": "XiaomiTWS",
+      "url": "https://github.com/web1n/android_packages_apps_XiaomiTWS",
+      "license": "Apache-2.0",
+      "commit": "0927e57cae772ac1016691b0930fb279fff51229",
+      "usage": "MMA config IDs, in-ear/gesture/find/model definitions and field layouts; independently reimplemented, no source code copied",
+      "sourceFiles": {
+        "src/org/lineageos/xiaomi_tws/features/DeviceModel.kt": "9dfa28fbc822d87e7821525cd97ebed3e80aea9117aa4c13edc7bff5fb1dd5cd",
+        "src/org/lineageos/xiaomi_tws/mma/ConfigData.kt": "7422e78304577f3f872ed01249051f110a8eec834cf6ff0c397ef61123f8ebcc",
+        "src/org/lineageos/xiaomi_tws/mma/configs/InEarState.kt": "ce802e9f15205c411fc729f6bc13f9c333ad32f735e8338f1fe24608bc863ff1",
+        "src/org/lineageos/xiaomi_tws/mma/configs/Gesture.kt": "0fc3f3d911b4f7c06cf16162a05e6d17e7de32ecc36ea4ba32fedb46fe1f3971",
+        "src/org/lineageos/xiaomi_tws/mma/configs/FindEarbuds.kt": "45231046622638ca6f941f09c2c72edac95feb63c685aa2acb78c257d16009e1",
+        "src/org/lineageos/xiaomi_tws/mma/configs/AutoAnswerCalls.kt": "623d8f7d781705802db83730ac80cc425efdf69508b7bcab3163d12d56b679f1",
+        "src/org/lineageos/xiaomi_tws/mma/configs/MultiConnect.kt": "7e0104a8974417bdf93a43ebc02e1bf3c4a1ee1a8ffd136d6eb4069a13c8ed78",
+        "src/org/lineageos/xiaomi_tws/mma/configs/EqualizerMode.kt": "61f071d187756f628688134ded2db341d0af089327e4dc7aabc673bda08f1662"
+      }
+    },
+    {
+      "name": "TWS-Pods-PC",
+      "url": "https://github.com/Zhaoyi-ya/TWS-Pods-PC",
+      "license": "GPL-3.0",
+      "commit": "3350f424c1ab69c4bc6cff92dd7b603fb0025db2",
+      "usage": "Xiaomi MMA frame layout and config semantics cross-check; no source code copied",
+      "sourceFiles": {
+        "xiaomi/PROTOCOL.md": "c408505f89499ef9a7e41bb2a53e597a289c10efcda7d36cda11a48acbec74e9"
+      }
     }
   ],
   "referenceFileSHA256": {
@@ -435,7 +462,7 @@
     "Sources/HeyBudsProtocol/Resources/DeviceModels.json": "43e006be230af991f994c0862db749f32bf0560d5b8fe3e387ad63d23e624baf",
     "Sources/HeyBudsProtocol/Resources/EqModeNames.en.json": "6cf5469217f08ac6a914a996c0d857e06c898e84cf47b3fa5cd18bd36513b07a",
     "Sources/HeyBudsProtocol/Resources/EqModeNames.json": "1e82f5b4e2cc92e1c1806cd4b86f97f7a2e09fb15a7645be3403c545aca1758b",
-    "Sources/HeyBudsProtocol/Resources/MigratedModels.json": "b8f7fab98e28b586e3b0000fc1357acc1ad6a2edf8351cb384394a7423bbdc2a",
+    "Sources/HeyBudsProtocol/Resources/MigratedModels.json": "90d739572576aef5f86d0e453db8ee36753b3c79514de082ad9041a32309d1c4",
     "Sources/HeyBudsProtocol/Resources/EncoDeckModels.json": "3fa94eb37f82e5ca2d8fccfa179c0d8aba0724f585403fba20214f8af8cafa06",
     "Sources/HeyBudsProtocol/Resources/SonyModels.json": "d0dfac070222999930275c50bbdb2d2ff5b4331430ed33573fbbe914dae95264",
     "Sources/HeyBudsProtocol/Resources/ExpansionModels.json": "1976f003f80bd1f23de4087abe718acb5dd6d269267532f784cedbc0dcc5c186"

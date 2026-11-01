@@ -365,7 +365,7 @@ struct PanelView: View {
         canAdjustEQ || canCustomizeEQ || canAdjustBass || canAdjustSpatial || availableFeature("spatialSound") != nil || availableFeature("voice") != nil
     }
     private var hasGameControls:Bool { gameFeature != nil || canAdjustGameSound }
-    private var hasEarbudControls:Bool { availableFeature("wear") != nil || !configurableGestures.isEmpty || canFind }
+    private var hasEarbudControls:Bool { availableFeature("wear") != nil || availableFeature("autoAnswer") != nil || !configurableGestures.isEmpty || canFind }
     private var assistanceFeatures:[FeatureDefinition] { ["hearing","hearingProtection","posture"].compactMap(availableFeature) }
     @ViewBuilder private var soundControls:some View {
         if canAdjustEQ { eqPicker }
@@ -428,19 +428,23 @@ struct PanelView: View {
         if let wear=availableFeature("wear") {
             featureToggle(wear,title:L("佩戴检测","In-ear detection"),detail:nil,symbol:"ear")
         }
+        if let auto=availableFeature("autoAnswer") {
+            if availableFeature("wear") != nil { Divider() }
+            featureToggle(auto,title:featureLabel(auto.key),detail:nil,symbol:"phone")
+        }
         ForEach(configurableGestures) { entry in
-            if availableFeature("wear") != nil || entry.id != configurableGestures.first?.id { Divider() }
+            if availableFeature("wear") != nil || availableFeature("autoAnswer") != nil || entry.id != configurableGestures.first?.id { Divider() }
             HStack(spacing:10) {
                 Text((entry.side == 1 ? L("左耳 · ","Left · ") : L("右耳 · ","Right · "))+gestureLabel(entry.gesture))
                 Spacer(minLength:8)
                 Picker(L("操作","Action"),selection:Binding(get:{entry.action},set:{ value in app.perform { try await $0.setGesture(entry,action:value) } })) {
-                    ForEach(Array(Set((app.session?.gestureActions(entry) ?? [])+[entry.action])).sorted(),id:\.self) { Text(actionLabel($0)).tag($0) }
+                    ForEach(Array(Set((app.session?.gestureActions(entry) ?? [])+[entry.action])).sorted(),id:\.self) { Text(gestureActionLabel($0, family: app.connectionFamily)).tag($0) }
                 }.labelsHidden().frame(maxWidth:138).disabled(app.operationBusy)
                     .accessibilityLabel((entry.side == 1 ? L("左耳 · ","Left · ") : L("右耳 · ","Right · "))+gestureLabel(entry.gesture))
             }.padding(.vertical,6)
         }
         if canFind {
-            if availableFeature("wear") != nil || !configurableGestures.isEmpty { Divider() }
+            if availableFeature("wear") != nil || availableFeature("autoAnswer") != nil || !configurableGestures.isEmpty { Divider() }
             HStack {
                 Button(L("查找耳机","Find earbuds")) { findConfirmation=true }
                 Spacer()
@@ -1002,9 +1006,26 @@ func featureLabel(_ key:String) -> String {
     case "hearing":return L("听力增强","Hearing enhancement")
     case "longBattery":return L("长续航模式","Long battery mode")
     case "posture":return L("颈椎健康提醒","Posture reminders")
+    case "autoAnswer":return L("自动接听","Auto answer")
     case "spatialSound":return L("空间音效","Spatial sound")
     default:return key
     }
 }
 func gestureLabel(_ value:UInt8) -> String { [1:L("单击","Single press"),2:L("双击","Double press"),3:L("三击","Triple press"),4:L("长按","Hold"),5:L("滑动","Swipe")][Int(value)] ?? L("手势 ","Gesture ")+String(value) }
 func actionLabel(_ value:UInt8) -> String { [0:L("无","None"),1:L("播放／暂停","Play / pause"),3:L("语音助手","Voice assistant"),5:L("上一首","Previous track"),6:L("下一首","Next track"),7:L("音量","Volume"),10:L("切换歌曲","Skip track"),17:L("游戏模式","Game mode")][Int(value)] ?? L("操作 ","Action ")+String(value) }
+func gestureActionLabel(_ value:UInt8, family:EarbudFamily?) -> String {
+    guard family == .xiaomi else { return actionLabel(value) }
+    switch value {
+    case 8:return L("无","None")
+    case 0:return L("语音助手","Voice assistant")
+    case 1:return L("播放／暂停","Play / pause")
+    case 2:return L("上一首","Previous track")
+    case 3:return L("下一首","Next track")
+    case 4:return L("音量 +","Volume +")
+    case 5:return L("音量 -","Volume -")
+    case 6:return L("切换降噪","Switch noise control")
+    case 9:return L("截图","Screenshot")
+    case 0x0B:return L("音量控制","Volume control")
+    default:return L("操作 ","Action ")+String(value)
+    }
+}

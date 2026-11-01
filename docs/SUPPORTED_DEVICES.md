@@ -234,7 +234,8 @@ This list follows the current app catalog. Duplicate display names are merged an
 
 ## Xiaomi / Redmi
 
-采用系列识别，当前目录未提供逐型号清单。 / Family detection; no per-model catalog is available.
+- **Xiaomi Buds 4 Pro** — 实机验证：电量/充电、降噪+深度、6 个 EQ 预设、双设备、自动接听、查找、手势、空间音频、佩戴/入盒。 / Hardware-verified: battery/charging, noise + depth, six EQ presets, dual connection, auto-answer, find, gestures, spatial audio, wear/in-case.
+- 其他 Xiaomi/Redmi 型号采用系列识别，当前目录未提供逐型号清单；维持 RCSP 电量及低延迟状态回读能力。新功能只对 Buds 4 Pro 开放。 / Other Xiaomi/Redmi models use family detection; no per-model catalog is available. They keep the existing RCSP battery and low-latency state readback; new features are limited to Buds 4 Pro.
 
 ## 其他音频设备 / Other audio devices
 

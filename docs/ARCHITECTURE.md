@@ -4,7 +4,7 @@
 
 `IOBluetooth / CoreBluetooth → EarbudTransport → DeviceSession 品牌路由 → 各品牌编解码与状态归一化 → AppModel → SwiftUI`
 
-OPPO 同时保留 RFCOMM 与 BLE GATT；vivo/华为/小米/漫步者由 `BrandSession` 处理自己的线制，不调用 OPO 握手或封包。RFCOMM 只通过各品牌服务 UUID 的 SDP 记录获取通道；华为标准 SPP 只用于已识别型号，不凭通用串口服务判定品牌。OPPO BLE 只发现已知控制服务和写入／通知特征，先检索系统已连接外设，再定向扫描。传输间按序切换，同一会话不会同时打开两条链路。
+OPPO 同时保留 RFCOMM 与 BLE GATT；vivo/华为/小米/漫步者由 `BrandSession` 处理自己的线制，不调用 OPO 握手或封包。RFCOMM 只通过各品牌服务 UUID 的 SDP 记录获取通道；华为标准 SPP 只用于已识别型号，不凭通用串口服务判定品牌。默认 Xiaomi/Redmi 家族保持 0.5.0 的 legacy 路径；只有 Xiaomi Buds 4 Pro 通过型号配置启用独立 MMA 路径，使用 Fast Connect/小爱两条 SDP 路由，并在每次写入后重新读取确认。RFCOMM 按路由顺序打开，单条路由打开失败或超时都会退到下一条，两条都不可用时才报错；控制通道同一时间只能由一个 host 占用，手机端耳机 App 占着通道时，Mac 侧会提示先释放手机端再重试。OPPO BLE 只发现已知控制服务和写入／通知特征，先检索系统已连接外设，再定向扫描。传输间按序切换，同一会话不会同时打开两条链路。
 
 ## 生命周期与写入
 
@@ -44,4 +44,4 @@ Sony uses an independent MDR V2 session over its dedicated RFCOMM service. The s
 
 `SamsungSession`、`GoogleSession`、`BoseSession`、`NothingSession` 各自选择消息、解析字段和验证回读，共享 `ControlChannel` 的请求/发送生命周期。没有请求编号的协议超时后关闭会话；Google 的只读路由探测允许按唯一调用编号丢弃迟到回复。BLE BMAP 分包保留 ATT 通知边界，OPPO BLE 的原封包保持不变。
 
-`ExpansionModels.json` 独立保存本轮 16 款，既有 212 条目录保持原字节。Sony 由明确 V1/V2 型号配置选择服务、握手、功能键与消息布局；两代同编号命令不能互用。新品牌不接受手动型号覆盖，不将 OPPO 能力键直接用作线命令。
+`ExpansionModels.json` 独立保存本轮 16 款，既有 213 条目录保持原字节。Sony 由明确 V1/V2 型号配置选择服务、握手、功能键与消息布局；两代同编号命令不能互用。新品牌不接受手动型号覆盖，不将 OPPO 能力键直接用作线命令。

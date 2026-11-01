@@ -14,8 +14,13 @@ public struct BrandFrameCodec:Sendable {
     public let family:EarbudFamily
     public let gaiaVersion:UInt8
     public let mbb:Bool
+    /// Only the verified Xiaomi MMA profile uses [status][SN] response frames.
+    /// The legacy Xiaomi family keeps its original [SN][payload] layout.
+    public let xiaomiMMA:Bool
     private var buffer:[UInt8]=[]
-    public init(family:EarbudFamily,gaiaVersion:UInt8=4,mbb:Bool=false) { self.family=family;self.gaiaVersion=gaiaVersion;self.mbb=mbb }
+    public init(family:EarbudFamily,gaiaVersion:UInt8=4,mbb:Bool=false,xiaomiMMA:Bool=false) {
+        self.family=family;self.gaiaVersion=gaiaVersion;self.mbb=mbb;self.xiaomiMMA=xiaomiMMA
+    }
     public func encode(_ frame:BrandFrame) throws -> Data {
         let p=frame.payload,c=frame.command
         var bytes:[UInt8]
@@ -39,8 +44,13 @@ public struct BrandFrameCodec:Sendable {
             bytes += [UInt8(sum>>8),UInt8(truncatingIfNeeded:sum)]
         case .xiaomi:
             guard p.count <= 4096,c <= 255 else { throw ProtocolError.invalidPayload }
-            let count=p.count+1
-            bytes=[0xFE,0xDC,0xBA,frame.kind,UInt8(c),UInt8(count>>8),UInt8(truncatingIfNeeded:count),frame.sequence]+p+[0xEF]
+            if xiaomiMMA,frame.kind & 0x80 == 0 {
+                let count=p.count+2 // status + sequence + payload
+                bytes=[0xFE,0xDC,0xBA,frame.kind,UInt8(c),UInt8(count>>8),UInt8(truncatingIfNeeded:count),0,frame.sequence]+p+[0xEF]
+            } else {
+                let count=p.count+1
+                bytes=[0xFE,0xDC,0xBA,frame.kind,UInt8(c),UInt8(count>>8),UInt8(truncatingIfNeeded:count),frame.sequence]+p+[0xEF]
+            }
         default:throw ProtocolError.unsupported
         }
         return Data(bytes)
@@ -94,7 +104,20 @@ public struct BrandFrameCodec:Sendable {
             case .vivo:frames.append(BrandFrame(UInt16(bytes[6])<<8 | UInt16(bytes[7]),Array(bytes[8...])))
             case .huawei:frames.append(BrandFrame(UInt16(bytes[4])<<8 | UInt16(bytes[5]),Array(bytes[6..<total-2])))
             case .edifier:frames.append(BrandFrame(UInt16(bytes[2]),Array(bytes[3..<total-2])))
-            case .xiaomi:frames.append(BrandFrame(UInt16(bytes[4]),Array(bytes[8..<total-1]),sequence:bytes[7],kind:bytes[3]))
+            case .xiaomi:
+                if xiaomiMMA {
+                    // MMA request/notification types have bit 7 set (0xC4/0xC7);
+                    // response 0x04 carries [status][SN][data].
+                    if bytes[3] & 0x80 != 0 {
+                        frames.append(BrandFrame(UInt16(bytes[4]),Array(bytes[8..<total-1]),sequence:bytes[7],kind:bytes[3]))
+                    } else {
+                        guard total >= 10 else { buffer.removeFirst();continue }
+                        frames.append(BrandFrame(UInt16(bytes[4]),Array(bytes[9..<total-1]),sequence:bytes[8],kind:bytes[3]))
+                    }
+                } else {
+                    // Legacy Xiaomi family: no status byte.
+                    frames.append(BrandFrame(UInt16(bytes[4]),Array(bytes[8..<total-1]),sequence:bytes[7],kind:bytes[3]))
+                }
             default:break
             }
             buffer.removeFirst(total)

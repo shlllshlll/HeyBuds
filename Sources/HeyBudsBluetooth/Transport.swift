@@ -4,9 +4,18 @@ import CoreBluetooth
 import HeyBudsProtocol
 
 public enum TransportEvent { case data(Data), closed(String?) }
-public enum TransportFailure: Error, LocalizedError {
+public enum TransportFailure: Error, LocalizedError, Equatable {
     case unavailable(String)
-    public var errorDescription: String? { if case .unavailable(let reason)=self { return reason }; return nil }
+    /// A control-channel open did not finish in time. Kept distinct from
+    /// `unavailable` so callers can describe the usual causes instead of
+    /// matching an English message.
+    case timedOut
+    public var errorDescription: String? {
+        switch self {
+        case .unavailable(let reason):return reason
+        case .timedOut:return "Control service connection timed out"
+        }
+    }
 }
 @MainActor public protocol EarbudTransport: AnyObject {
     var onEvent: ((TransportEvent) -> Void)? { get set }
@@ -21,9 +30,14 @@ public struct DeviceCandidate: Identifiable, Equatable, Sendable {
     public let audioConnected: Bool
     public let classicAddress: String?
     public let family: EarbudFamily?
-    public let controlServiceUUID:String?
-    public init(id: String, name: String, audioConnected: Bool, classicAddress: String?, family:EarbudFamily?=nil,controlServiceUUID:String?=nil) {
-        self.id=id; self.name=name; self.audioConnected=audioConnected; self.classicAddress=classicAddress;self.family=family;self.controlServiceUUID=controlServiceUUID
+    public let controlServiceUUIDs:[String]
+    public var controlServiceUUID:String? { controlServiceUUIDs.first }
+    public init(id: String, name: String, audioConnected: Bool, classicAddress: String?, family:EarbudFamily?=nil,controlServiceUUIDs:[String]=[]) {
+        self.id=id; self.name=name; self.audioConnected=audioConnected; self.classicAddress=classicAddress;self.family=family;self.controlServiceUUIDs=controlServiceUUIDs
+    }
+    /// Source-compatible single-service initializer for callers outside the app.
+    public init(id: String, name: String, audioConnected: Bool, classicAddress: String?, family:EarbudFamily?=nil,controlServiceUUID:String?) {
+        self.init(id:id,name:name,audioConnected:audioConnected,classicAddress:classicAddress,family:family,controlServiceUUIDs:controlServiceUUID.map { [$0] } ?? [])
     }
 }
 @MainActor public enum Discovery {
@@ -48,10 +62,14 @@ public struct DeviceCandidate: Identifiable, Equatable, Sendable {
                 })
                 let family=catalog?.routingFamily(name:name,services:services)
                 guard let family else { return nil }
-                let available=family.classicServiceUUIDs.filter { device.getServiceRecord(for:uuid($0)) != nil }
-                let preferred=family.serviceUUID(for:name)
-                let service=preferred.flatMap { available.contains($0) ? $0 : nil } ?? (available.count == 1 ? available.first : nil)
-                return DeviceCandidate(id:address,name:name,audioConnected:device.isConnected(),classicAddress:address,family:family,controlServiceUUID:service)
+                let mma=catalog?.model(productID:nil,name:name,override:nil)?.isXiaomiMMA == true
+                // Probe the family-wide cache so the original single-service
+                // fallback still applies to Sony and the other families. The MMA
+                // profile reports every documented route instead: the channel and
+                // its fallback are resolved again from SDP when it opens.
+                let cached=family.classicServiceUUIDs.filter { device.getServiceRecord(for:uuid($0)) != nil }
+                let service=family.resolvedControlServiceUUIDs(for:name,available:cached,xiaomiMMA:mma)
+                return DeviceCandidate(id:address,name:name,audioConnected:device.isConnected(),classicAddress:address,family:family,controlServiceUUIDs:service)
             }.sorted { $0.audioConnected == $1.audioConnected ? $0.name < $1.name : $0.audioConnected }
         }.value
     }

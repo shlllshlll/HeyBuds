@@ -82,12 +82,80 @@ public enum BrandState {
             else if c == 0xCC,let mode=p.first,let value=([1:NoiseMode.off,2:.anc,3:.transparency])[Int(mode)] { state.noise=value;observed=Command.noise }
             else { return false }
         case .xiaomi:
-            if p.starts(with:[2,2,4,7]),p.count >= 5 {
-                for (i,slot) in BatterySlot.allCases.enumerated() where p.count > i+4 { setBattery(p[i+4],slot:slot,charging:false,state:&state) }
-                observed=Command.battery
-            } else if [UInt16(0xF3),0xF4].contains(c),p.count >= 4,p[0] == 3,p[1] == 0,p[2] == 47,p[3] <= 1 {
-                state.switches[6]=p[3] == 1;observed=Command.switches
-            } else { return false }
+            let mma=model.isXiaomiMMA
+            if mma {
+                if c == 2,let levels=xiaomiBatteryLevels(p) {
+                    // MMA DeviceInfo battery values use bit 7 as the charging flag.
+                    // The reference treats 0 and >100 as "no reading", so the slot is
+                    // cleared instead of leaving a stale percentage on screen.
+                    for (i,slot) in BatterySlot.allCases.enumerated() where i < levels.count {
+                        let raw=Int(levels[i]),percent=raw & 0x7F
+                        guard (1...100).contains(percent) else { state.batteries[slot]=nil; continue }
+                        state.batteries[slot]=BatteryReading(percent:percent,charging:raw & 0x80 != 0)
+                    }
+                    observed=Command.battery
+                } else if let (id,value)=xiaomiConfig(p) {
+                    switch id {
+                    case 0x000C:
+                        guard let raw=value.first else { return false }
+                        state.placement[.left]=raw & 0x08 != 0 ? 3 : raw & 0x02 != 0 ? 4 : 1
+                        state.placement[.right]=raw & 0x04 != 0 ? 3 : raw & 0x01 != 0 ? 4 : 1
+                        observed=Command.wear
+                    case 0x000B:
+                        guard let modeByte=value.first else { return false }
+                        let level=value.count > 1 ? Int(value[1]) : 0
+                        switch modeByte {
+                        case 0: state.noise = .off
+                        case 1: state.noise = [0:.anc,1:.light,2:.medium,3:.deep][level] ?? .anc
+                        case 2: state.noise = .transparency
+                        default: return false
+                        }
+                        observed=Command.noise
+                    case 0x0007:
+                        guard let raw=value.first,model.presets.contains(where:{$0.id == raw}) else { return false }
+                        state.eq=raw;observed=Command.equalizer
+                    case 0x0004:
+                        guard let raw=value.first,raw <= 1 else { return false }
+                        state.switches[0x11]=raw == 1;observed=Command.switches
+                    case 0x0003:
+                        guard let raw=value.first,raw <= 1 else { return false }
+                        state.switches[0x12]=raw == 1;observed=Command.switches
+                    case 0x0009:
+                        guard value.count >= 2,value[0] <= 1 else { return false }
+                        state.finding=value[0] == 1;observed=Command.find
+                    case 0x0002:
+                        guard value.count >= 3,value.count % 3 == 0 else { return false }
+                        // Triples of [gesture type][left action][right action]. 0xFF means
+                        // the side has no assignment; omit it so a later SET leaves it as-is.
+                        let gestureMap:[Int:UInt8]=[4:1,1:2,2:3,3:4,5:5]
+                        var entries:[GestureEntry]=[]
+                        for offset in stride(from:0,to:value.count,by:3) {
+                            guard let gesture=gestureMap[Int(value[offset])] else { continue }
+                            if value[offset+1] != 0xFF { entries.append(GestureEntry(side:1,mode:1,gesture:gesture,action:value[offset+1])) }
+                            if value[offset+2] != 0xFF { entries.append(GestureEntry(side:2,mode:1,gesture:gesture,action:value[offset+2])) }
+                        }
+                        guard !entries.isEmpty else { return false }
+                        state.gestures=entries;observed=Command.gestures
+                    case 0x001E:
+                        guard let raw=value.first else { return false }
+                        state.spatial=raw
+                        state.switches[0x1B]=raw & 1 != 0
+                        observed=Command.switches
+                    case 0x002F:
+                        guard let raw=value.first,raw <= 1 else { return false }
+                        state.switches[6]=raw == 1;observed=Command.switches
+                    default:return false
+                    }
+                } else { return false }
+            } else {
+                // Legacy family path is intentionally byte-for-byte compatible with 0.5.0.
+                if p.starts(with:[2,2,4,7]),p.count >= 5 {
+                    for (i,slot) in BatterySlot.allCases.enumerated() where p.count > i+4 { setBattery(p[i+4],slot:slot,charging:false,state:&state) }
+                    observed=Command.battery
+                } else if [UInt16(0xF3),0xF4].contains(c),p.count >= 4,p[0] == 3,p[1] == 0,p[2] == 47,p[3] <= 1 {
+                    state.switches[6]=p[3] == 1;observed=Command.switches
+                } else { return false }
+            }
         default:return false
         }
         if let observed { state.observedQueries.insert(observed) }
@@ -105,6 +173,25 @@ public enum BrandState {
             entries.append(CustomEQEntry(id:bytes[offset],name:name,selected:selected == bytes[offset],minimum:-60,maximum:60,frequencies:model.customEQFrequencies,gains:gains))
         }
         return entries
+    }
+    /// Xiaomi MMA DeviceInfo data: repeated [length][tag][value...] entries.
+    /// Battery is tag 7 with a three-byte left/right/case value.
+    private static func xiaomiBatteryLevels(_ payload:[UInt8]) -> [UInt8]? {
+        var index=0
+        while index+2 <= payload.count {
+            let length=Int(payload[index])
+            guard length >= 1,index+1+length <= payload.count else { break }
+            if payload[index+1] == 7,length == 4 {
+                return Array(payload[(index+2)..<(index+1+length)])
+            }
+            index += 1+length
+        }
+        return nil
+    }
+    /// Xiaomi MMA config reply data: ``[length][configId 2B][value...]``.
+    private static func xiaomiConfig(_ payload:[UInt8]) -> (UInt16,[UInt8])? {
+        guard payload.count >= 3,Int(payload[0]) == payload.count-1 else { return nil }
+        return (UInt16(payload[1])<<8 | UInt16(payload[2]),Array(payload.dropFirst(3)))
     }
     private static func setBattery(_ value:UInt8,slot:BatterySlot,charging:Bool,state:inout DeviceState) {
         state.batteries[slot]=value <= 100 ? BatteryReading(percent:Int(value),charging:charging) : nil

@@ -7,6 +7,8 @@ import HeyBudsProtocol
 @MainActor final class BrandSession {
     private(set) var state=DeviceState()
     private(set) var model:DeviceModel
+    /// Only the verified Buds 4 Pro profile uses the newer MMA frame/battery layout.
+    private var xiaomiMMA:Bool { model.isXiaomiMMA }
     private(set) var ready=false
     var onChange:(()->Void)?
     var onClose:((String?)->Void)?
@@ -37,7 +39,7 @@ import HeyBudsProtocol
             ?? catalog.models.first(where:{$0.family == family && $0.raw["familyOnly"].enabled})
             ?? .readOnly(name:name,family:family)
         if model.family != family { model = .readOnly(name:name,family:family) }
-        codec=BrandFrameCodec(family:family,gaiaVersion:UInt8(model.raw["gaiaVersion"].int ?? 4))
+        codec=BrandFrameCodec(family:family,gaiaVersion:UInt8(model.raw["gaiaVersion"].int ?? 4),xiaomiMMA:model.isXiaomiMMA)
     }
     func open() async throws {
         let token=generation
@@ -64,13 +66,31 @@ import HeyBudsProtocol
             if state.observedQueries.isEmpty { _ = try? await read(Command.noise) }
             guard !state.observedQueries.isEmpty else { throw ProtocolError.invalidPayload }
         case .xiaomi:
-            // Preserve upstream's optional challenge probe and its documented frame layout.
+            // Optional upstream probe retained as a read-only DeviceInfo request. Some
+            // firmware answers the documented auth opcode with a result that does not
+            // match XiaomiAuth, so only send the auth result when this probe verifies.
+            // MMA firmware may answer with a full DeviceInfo payload, so accept its
+            // sequence instead of waiting out the probe timeout on every connection.
             let random=(0..<16).map { _ in UInt8.random(in:0...255) }
-            if let response=try? await request(2,payload:[1]+random,sequence:0x50,timeout:1.2,accepts:{$0.payload.count == 17}),
+            let authAccepts:(BrandFrame)->Bool = xiaomiMMA
+                ? { $0.command == 2 && $0.sequence == 0x50 }
+                : { $0.payload.count == 17 }
+            if let response=try? await request(2,payload:[1]+random,sequence:0x50,timeout:1.2,accepts:authAccepts),
+               response.payload.count == 17,
                Array(response.payload.dropFirst()) == (try XiaomiAuth.response(random)) {
                 try await send(0x51,payload:[3,1],sequence:0,kind:4)
             }
             try await read(Command.battery)
+            if xiaomiMMA {
+                if canQuery(Command.noise) { _ = try? await read(Command.noise) }
+                if canQuery(Command.equalizer) { _ = try? await read(Command.equalizer) }
+                if model.function["multiDevicesConnect"].enabled { _ = try? await readXiaomiFlag(0x0004) }
+                if model.function["autoAnswerCalls"].enabled { _ = try? await readXiaomiFlag(0x0003) }
+                if model.function["findDevice"].enabled { _ = try? await readXiaomiFlag(0x0009) }
+                if canQuery(Command.gestures) { _ = try? await read(Command.gestures) }
+                if model.function["spatialSound"].enabled { _ = try? await readXiaomiFlag(0x001E) }
+                if canQuery(Command.wear) { _ = try? await read(Command.wear) }
+            }
         default:throw ProtocolError.unsupported
         }
         try Task.checkCancellation()
@@ -93,9 +113,15 @@ import HeyBudsProtocol
     func refresh() async {
         guard ready else { return }
         let token=generation
-        for command in [Command.battery,Command.noise,Command.equalizer,Command.spatial,Command.switches,Command.wear,Command.firmware,Command.hosts] where canQuery(command) {
+        for command in [Command.battery,Command.noise,Command.equalizer,Command.spatial,Command.gestures,Command.switches,Command.wear,Command.firmware,Command.hosts] where canQuery(command) {
             guard !Task.isCancelled,ready,generation == token else { return }
             _ = try? await read(command)
+        }
+        if xiaomiMMA {
+            if model.function["multiDevicesConnect"].enabled { _ = try? await readXiaomiFlag(0x0004) }
+            if model.function["autoAnswerCalls"].enabled { _ = try? await readXiaomiFlag(0x0003) }
+            if model.function["findDevice"].enabled { _ = try? await readXiaomiFlag(0x0009) }
+            if model.function["spatialSound"].enabled { _ = try? await readXiaomiFlag(0x001E) }
         }
         let stale=state.batteries.filter { Date().timeIntervalSince($0.value.updatedAt) >= 120 }.map(\.key)
         for slot in stale { state.batteries[slot]=nil }
@@ -117,9 +143,15 @@ import HeyBudsProtocol
         case Command.equalizer:return !model.presets.isEmpty || !model.customEQFrequencies.isEmpty
         case Command.customEQ:return !model.customEQFrequencies.isEmpty
         case Command.spatial:return !model.spatialModes.isEmpty
-        case Command.switches:return !availableFeatures.isEmpty || model.supportsGame || family == .xiaomi
-        case Command.hosts:return model.hasMultiDevice
-        case Command.wear,Command.firmware:return family == .vivo
+        case Command.gestures:return family == .xiaomi && model.function["control"].enabled
+        case Command.switches:
+            if family == .xiaomi { return xiaomiMMA ? (model.supportsGame || model.function["lowLatency"].enabled) : true }
+            return !availableFeatures.isEmpty || model.supportsGame
+        // Xiaomi has no host-list command: expose the dual-connection toggle only,
+        // instead of advertising a query that can never be answered.
+        case Command.hosts:return family != .xiaomi && model.hasMultiDevice
+        case Command.wear:return family == .vivo || (family == .xiaomi && model.function["inEarState"].enabled)
+        case Command.firmware:return family == .vivo
         default:return false
         }
     }
@@ -132,7 +164,10 @@ import HeyBudsProtocol
         case Command.setSwitch:return availableFeatures.contains(where:canSetFeature) || gameFeature != nil
         case Command.setCustomEQ:return !model.customEQFrequencies.isEmpty && state.observedQueries.contains(Command.customEQ)
         case Command.operateHost:return model.hasMultiDevice && state.observedQueries.contains(Command.hosts)
-        case Command.find:return family == .vivo && model.function["findDevice"].enabled
+        case Command.find:
+            if family == .xiaomi { return model.function["findDevice"].enabled && state.finding != nil }
+            return family == .vivo && model.function["findDevice"].enabled
+        case Command.setGestures:return family == .xiaomi && !state.gestures.isEmpty
         default:return false
         }
     }
@@ -176,10 +211,33 @@ import HeyBudsProtocol
             }
         case .edifier:sample = try await readRequest(command == Command.battery ? 0xD0 : 0xCC)
         case .xiaomi:
-            if command == Command.battery { sample = try await readRequest(2,payload:[255,255,255,255],sequence:0x0B,accepts:{$0.sequence == 0x0B && $0.payload.starts(with:[2,2,4,7])}) }
-            else if command == Command.switches {
+            // DeviceInfo request: [0,0,0,1<<7] asks for the battery mask only.
+            // The reply data is [length=4][mask=7][left][right][case].
+            if command == Command.battery {
+                if xiaomiMMA {
+                    sample = try await readRequest(2,payload:[0,0,0,0x80],sequence:0x0B,accepts:{$0.command == 2 && $0.sequence == 0x0B})
+                } else {
+                    sample = try await readRequest(2,payload:[255,255,255,255],sequence:0x0B,accepts:{$0.sequence == 0x0B && $0.payload.starts(with:[2,2,4,7])})
+                }
+            } else if xiaomiMMA,command == Command.noise {
                 let seq=nextSequence()
-                sample = try await readRequest(0xF3,payload:[2,0,47],sequence:seq,accepts:{$0.command == 0xF3 && $0.sequence == seq && $0.payload.starts(with:[3,0,47])})
+                sample = try await readRequest(0xF3,payload:[0x00,0x0B],sequence:seq,accepts:{$0.command == 0xF3 && $0.sequence == seq})
+            } else if xiaomiMMA,command == Command.equalizer {
+                let seq=nextSequence()
+                sample = try await readRequest(0xF3,payload:[0x00,0x07],sequence:seq,accepts:{$0.command == 0xF3 && $0.sequence == seq})
+            } else if xiaomiMMA,command == Command.gestures {
+                let seq=nextSequence()
+                sample = try await readRequest(0xF3,payload:[0x00,0x02],sequence:seq,accepts:{$0.command == 0xF3 && $0.sequence == seq})
+            } else if xiaomiMMA,command == Command.wear {
+                let seq=nextSequence()
+                sample = try await readRequest(0xF3,payload:[0x00,0x0C],sequence:seq,accepts:{$0.command == 0xF3 && $0.sequence == seq})
+            } else if command == Command.switches {
+                let seq=nextSequence()
+                if xiaomiMMA {
+                    sample = try await readRequest(0xF3,payload:[0x00,0x2F],sequence:seq,accepts:{$0.command == 0xF3 && $0.sequence == seq})
+                } else {
+                    sample = try await readRequest(0xF3,payload:[2,0,47],sequence:seq,accepts:{$0.command == 0xF3 && $0.sequence == seq && $0.payload.starts(with:[3,0,47])})
+                }
             } else { throw ProtocolError.unsupported }
         default:throw ProtocolError.unsupported
         }
@@ -293,6 +351,24 @@ import HeyBudsProtocol
         } while Date() < until
         throw ProtocolError.readbackMismatch
     }
+    private func readXiaomiFlag(_ id: UInt16) async throws {
+        let seq=nextSequence()
+        _ = try await readRequest(0xF3,payload:[UInt8(id>>8),UInt8(id&0xFF)],sequence:seq,accepts:{$0.command == 0xF3 && $0.sequence == seq})
+    }
+    private func xiaomiSetFlag(_ id: UInt16,switchID: UInt8,enabled: Bool) async throws -> WriteOutcome {
+        let seq=nextSequence()
+        try await send(0xF2,payload:[0x03,UInt8(id>>8),UInt8(id&0xFF),enabled ? 1 : 0],sequence:seq)
+        let token=generation
+        let until=Date().addingTimeInterval(3)
+        repeat {
+            try Task.checkCancellation()
+            guard ready,generation == token else { throw ProtocolError.disconnected }
+            try await readXiaomiFlag(id)
+            if state.switches[switchID] == enabled { return .confirmed }
+            try await Task.sleep(for:.milliseconds(250))
+        } while Date() < until
+        throw ProtocolError.readbackMismatch
+    }
     func setNoise(_ mode:NoiseMode) async throws -> WriteOutcome {
         guard canWrite(Command.setNoise,reading:Command.noise),let option=model.noiseOptions.first(where:{$0.mode == mode}) else { throw ProtocolError.unsupported }
         switch family {
@@ -301,26 +377,119 @@ import HeyBudsProtocol
             if model.raw["route"].text == "FreeBuds3" { try await send(0x2B04,payload:[1,1,mode == .off ? 0 : 1]);return .sent }
             return try await confirmedWrite(command:0x2B04,payload:[1,2]+option.writeBytes,read:Command.noise) { $0.noise == mode || (mode == .anc && $0.noise?.group == .anc) }
         case .edifier:return try await confirmedWrite(command:0xC1,payload:option.writeBytes,read:Command.noise) { $0.noise == mode }
+        case .xiaomi:
+            guard option.writeBytes.count == 2 else { throw ProtocolError.unsupported }
+            let seq=nextSequence()
+            try await send(0xF2,payload:[0x04,0x00,0x0B,option.writeBytes[0],option.writeBytes[1]],sequence:seq)
+            let token=generation
+            let until=Date().addingTimeInterval(3)
+            repeat {
+                try Task.checkCancellation()
+                guard ready,generation == token else { throw ProtocolError.disconnected }
+                let sample=try await read(Command.noise)
+                if sample.noise == mode { return .confirmed }
+                try await Task.sleep(for:.milliseconds(250))
+            } while Date() < until
+            throw ProtocolError.readbackMismatch
         default:throw ProtocolError.unsupported
         }
     }
     func setEQ(_ id:UInt8) async throws -> WriteOutcome {
         guard canWrite(Command.setEQ,reading:Command.equalizer),model.presets.contains(where:{$0.id == id}) || state.customEQ.contains(where:{$0.id == id}) else { throw ProtocolError.unsupported }
+        if family == .xiaomi {
+            guard model.presets.contains(where:{$0.id == id}) else { throw ProtocolError.unsupported }
+            let seq=nextSequence()
+            try await send(0xF2,payload:[0x03,0x00,0x07,id],sequence:seq)
+            let token=generation
+            let until=Date().addingTimeInterval(3)
+            repeat {
+                try Task.checkCancellation()
+                guard ready,generation == token else { throw ProtocolError.disconnected }
+                let sample=try await read(Command.equalizer)
+                if sample.eq == id { return .confirmed }
+                try await Task.sleep(for:.milliseconds(250))
+            } while Date() < until
+            throw ProtocolError.readbackMismatch
+        }
         return try await confirmedWrite(command:family == .vivo ? 0x0118 : 0x2B49,payload:family == .vivo ? [id] : [1,1,id],read:Command.equalizer) { $0.eq == id }
     }
     func setSpatial(_ value:UInt8) async throws -> WriteOutcome {
         guard canWrite(Command.setSpatial,reading:Command.spatial),model.spatialModes.contains(value),family == .vivo else { throw ProtocolError.unsupported }
         return try await confirmedWrite(command:0x0139,payload:[value]+(spatialScene.map { [$0] } ?? []),read:Command.spatial) { $0.spatial == value }
     }
+    func gestureActions(_ entry:GestureEntry) -> [UInt8] {
+        guard family == .xiaomi,entry.mode == 1 else { return [] }
+        switch entry.gesture {
+        case 1,2,3:return [8,1,2,3,4,5,9]
+        case 4:return [8,0,6]
+        case 5:return [8,0x0B]
+        default:return []
+        }
+    }
+    func setGesture(_ entry:GestureEntry,action:UInt8) async throws -> WriteOutcome {
+        guard canWrite(Command.setGestures,reading:Command.gestures),gestureActions(entry).contains(action) else { throw ProtocolError.unsupported }
+        // The SET payload replaces the whole gesture table, so it is rebuilt from
+        // the last read. Sides the device reported as unassigned (0xFF) are sent
+        // back unchanged instead of being rewritten as "no action".
+        let mapping:[UInt8:UInt8]=[1:4,2:1,3:2,4:3,5:5]
+        var byType:[UInt8:(left:UInt8,right:UInt8)]=[:]
+        for gesture in state.gestures {
+            guard let type=mapping[gesture.gesture] else { continue }
+            var pair=byType[type] ?? (0xFF,0xFF)
+            let value=gesture.id == entry.id ? action : gesture.action
+            if gesture.side == 1 { pair.left=value } else if gesture.side == 2 { pair.right=value }
+            byType[type]=pair
+        }
+        let types=byType.keys.sorted()
+        guard !types.isEmpty else { throw ProtocolError.unsupported }
+        var value:[UInt8]=[]
+        for type in types { let pair=byType[type]!;value += [type,pair.left,pair.right] }
+        let seq=nextSequence()
+        try await send(0xF2,payload:[UInt8(value.count+2),0x00,0x02]+value,sequence:seq)
+        let token=generation
+        let until=Date().addingTimeInterval(3)
+        repeat {
+            try Task.checkCancellation()
+            guard ready,generation == token else { throw ProtocolError.disconnected }
+            let sample=try await read(Command.gestures)
+            if sample.gestures.contains(where:{$0.id == entry.id && $0.action == action}) { return .confirmed }
+            try await Task.sleep(for:.milliseconds(250))
+        } while Date() < until
+        throw ProtocolError.readbackMismatch
+    }
     func setFeature(_ feature:FeatureDefinition,enabled:Bool) async throws -> WriteOutcome {
         guard canSetFeature(feature) else { throw ProtocolError.unsupported }
         if family == .xiaomi {
-            let seq=nextSequence();try await send(0xF2,payload:[3,0,47,enabled ? 1 : 0],sequence:seq)
-            let token=generation
-            let sample=try await read(Command.switches)
-            try Task.checkCancellation()
-            guard ready,generation == token else { throw ProtocolError.disconnected }
-            guard sample.switches[6] == enabled else { throw ProtocolError.readbackMismatch };return .confirmed
+            // Legacy family keeps the original config-47 game/low-latency write.
+            if feature.key == "game" {
+                let seq=nextSequence();try await send(0xF2,payload:[3,0,47,enabled ? 1 : 0],sequence:seq)
+                let token=generation
+                let sample=try await read(Command.switches)
+                try Task.checkCancellation()
+                guard ready,generation == token else { throw ProtocolError.disconnected }
+                guard sample.switches[6] == enabled else { throw ProtocolError.readbackMismatch };return .confirmed
+            }
+            guard xiaomiMMA else { throw ProtocolError.unsupported }
+            switch feature.key {
+            case "dual": return try await xiaomiSetFlag(0x0004,switchID:0x11,enabled:enabled)
+            case "autoAnswer": return try await xiaomiSetFlag(0x0003,switchID:0x12,enabled:enabled)
+            case "spatialSound":
+                let raw=state.spatial ?? 0
+                let next=enabled ? (raw | 1) : (raw & 0xFE)
+                let seq=nextSequence()
+                try await send(0xF2,payload:[0x03,0x00,0x1D,next],sequence:seq)
+                let token=generation
+                let until=Date().addingTimeInterval(3)
+                repeat {
+                    try Task.checkCancellation()
+                    guard ready,generation == token else { throw ProtocolError.disconnected }
+                    try await readXiaomiFlag(0x001E)
+                    if state.switches[0x1B] == enabled { return .confirmed }
+                    try await Task.sleep(for:.milliseconds(250))
+                } while Date() < until
+                throw ProtocolError.readbackMismatch
+            default:throw ProtocolError.unsupported
+            }
         }
         let command:UInt16
         switch (family,feature.key) {
@@ -367,15 +536,31 @@ import HeyBudsProtocol
     }
     func find(_ enabled:Bool) async throws -> WriteOutcome {
         guard canWrite(Command.find,reading:nil) else { throw ProtocolError.unsupported }
+        if family == .xiaomi {
+            let seq=nextSequence()
+            let positions:UInt8=enabled ? 0x03 : 0x00
+            try await send(0xF2,payload:[0x04,0x00,0x09,enabled ? 1 : 0,positions],sequence:seq)
+            let token=generation
+            let until=Date().addingTimeInterval(3)
+            repeat {
+                try Task.checkCancellation()
+                guard ready,generation == token else { throw ProtocolError.disconnected }
+                try await readXiaomiFlag(0x0009)
+                if state.finding == enabled { return .confirmed }
+                try await Task.sleep(for:.milliseconds(250))
+            } while Date() < until
+            throw ProtocolError.readbackMismatch
+        }
         try await send(0x0120,payload:[enabled ? 1 : 0]);return .sent
     }
     func setModelOverride(_ id:String?) {
         guard let new=catalog.model(productID:state.productID,name:name,override:id),new.family == family else { return }
-        model=new;codec=BrandFrameCodec(family:family,gaiaVersion:UInt8(model.raw["gaiaVersion"].int ?? 4));onChange?()
+        model=new
+        codec=BrandFrameCodec(family:family,gaiaVersion:UInt8(new.raw["gaiaVersion"].int ?? 4),xiaomiMMA:new.isXiaomiMMA);onChange?()
     }
     func close() {
         generation=UUID();ready=false;poll?.cancel();poll=nil
         pending?.exchange.cancel();pending=nil
-        collectingHosts=false;codec=BrandFrameCodec(family:family,gaiaVersion:UInt8(model.raw["gaiaVersion"].int ?? 4));transport.onEvent=nil;transport.close();state=DeviceState();onChange?()
+        collectingHosts=false;codec=BrandFrameCodec(family:family,gaiaVersion:UInt8(model.raw["gaiaVersion"].int ?? 4),xiaomiMMA:model.isXiaomiMMA);transport.onEvent=nil;transport.close();state=DeviceState();onChange?()
     }
 }

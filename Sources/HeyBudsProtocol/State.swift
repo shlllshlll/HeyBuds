@@ -57,6 +57,7 @@ public struct DeviceState: Sendable {
     public var samsungControls: SamsungControlState?
     public var eq: UInt8?
     public var spatial: UInt8?
+    public var finding: Bool?
     public var switches: [UInt8:Bool] = [:]
     public var customEQ: [CustomEQEntry] = []
     public var bass: BassState?

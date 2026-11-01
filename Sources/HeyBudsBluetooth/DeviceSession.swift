@@ -493,7 +493,10 @@ public enum WriteOutcome: String, Sendable { case confirmed, sent }
         return try await write(Command.find,payload:[enabled ? 1 : 0],read:nil) { _ in false }
     }
     public func setGesture(_ entry:GestureEntry, action:UInt8) async throws -> WriteOutcome {
-        guard brandSession == nil else { throw ProtocolError.unsupported }
+        if let brandSession {
+            guard brandSession.family == .xiaomi else { throw ProtocolError.unsupported }
+            return try await brandSession.setGesture(entry,action:action)
+        }
         let allowed=gestureActions(entry)
         guard entry.mode == 1, allowed.contains(action) else { throw ProtocolError.unsupported }
         return try await write(Command.setGestures,payload:[1,entry.side,entry.mode,entry.gesture,action],read:Command.gestures,readPayload:[2,3,1]) { sample in
@@ -501,6 +504,7 @@ public enum WriteOutcome: String, Sendable { case confirmed, sent }
         }
     }
     public func gestureActions(_ entry:GestureEntry) -> [UInt8] {
+        if let brandSession,brandSession.family == .xiaomi { return brandSession.gestureActions(entry) }
         guard brandSession == nil else { return [] }
         guard let control=model?.function["control"].elements.first(where:{$0["action"].int == Int(entry.gesture)}),
               let mask=control["support"].int, mask > 0 else { return [] }

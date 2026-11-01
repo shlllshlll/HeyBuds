@@ -46,8 +46,12 @@ for route,name,body in re.findall(r'\[HuaweiRoute\.(\w+)\] = new\("([^"]+)",\s*(
   ids=[5,1,2,9] if route in ['FreeBudsPro3','FreeBudsPro4','FreeBudsPro5'] else [1,2,3] if route in ['FreeBudsPro2','FreeBudsStudio'] else [1,2,3,9]
   m['presets']=[dict(id=i,zh=z,en=e) for i,z,e in zip(ids,['默认','重低音','高音增强','人声'],['Default','Bass boost','Treble boost','Voice'])]
  if route in ['FreeBuds6I','FreeBudsPro3','FreeBudsPro4','FreeBudsPro5','FreeBuds7I','FreeArc','FreeLacePro2']:f.update(customEqualizer=True,customEqFrequency=[31,62,125,250,500,1000,2000,4000,8000,16000],customEqMax=3,customEqMinimum=-60,customEqMaximum=60)
-# Xiaomi has a family matcher, no model catalog. Preserve that distinction.
-add('xiaomi:family','Xiaomi / Redmi','Xiaomi','xiaomi',familyOnly=True)
+# Xiaomi keeps a family fallback for unprofiled models plus a verified Buds 4 Pro profile.
+b=add('xiaomi:buds4pro','Xiaomi Buds 4 Pro','Xiaomi','xiaomi');b['protocolVariant']='mma'
+b['function']={'multiDevicesConnect':True,'autoAnswerCalls':True,'findDevice':True,'control':True,'spatialSound':True,'inEarState':True}
+b['noise']=[dict(mode='off',bytes=[0,0]),dict(mode='anc',bytes=[1,0]),dict(mode='light',bytes=[1,1]),dict(mode='medium',bytes=[1,2]),dict(mode='deep',bytes=[1,3]),dict(mode='transparency',bytes=[2,0])]
+b['presets']=[dict(id=i,zh=z,en=e) for i,z,e in [(0,'默认','Default'),(1,'人声增强','Vocal enhance'),(5,'低音增强','Bass boost'),(6,'高音增强','Treble boost'),(11,'经典','Classic'),(12,'传奇','Legendary')]]
+m=add('xiaomi:family','Xiaomi / Redmi','Xiaomi','xiaomi',familyOnly=True)
 for name in ['W820NB','W200BT','EDIFIER']:
  m=add('edifier:'+name,name,'EDIFIER','edifier',familyOnly=True);m['noise']=[dict(mode='off',bytes=[1]),dict(mode='anc',bytes=[2]),dict(mode='transparency',bytes=[3])];m['function']['singleBattery']=True
 out=root/'Sources/HeyBudsProtocol/Resources/MigratedModels.json';out.write_text(json.dumps(dict(source='OppoPodsManager-main',models=models),ensure_ascii=False,indent=2)+'\n')

@@ -34,7 +34,7 @@
 | OPPO / OnePlus / realme | 电量、降噪、EQ、空间与游戏音效、多设备 |
 | vivo / iQOO | 电量、降噪、EQ、空间与游戏音效、多设备 |
 | HUAWEI | 电量、降噪、EQ、自定义 EQ、多设备 |
-| Xiaomi / Redmi | 系列识别、电量；低延迟需有效状态回读 |
+| Xiaomi / Redmi | Buds 4 Pro：电量/充电、降噪、EQ、双设备、手势、空间音频、佩戴；其他型号：系列识别、电量；低延迟需有效状态回读 |
 | EDIFIER | 支持 SPP 的系列电量及降噪 |
 | Samsung | Galaxy Buds2 / Buds2 Pro / Buds4 Pro：电量、降噪与预设 EQ；前两款触控锁、Buds4 Pro 降噪强度 |
 | Google | Pixel Buds Pro / Pro 2：电量、降噪与五组 EQ 预设 |

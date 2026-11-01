@@ -8,7 +8,13 @@ import HeyBudsProtocol
     public var onEvent: ((TransportEvent) -> Void)?
     public let label="RFCOMM"
     private let device: IOBluetoothDevice
-    public let serviceUUID:String
+    /// Ordered SDP routes. The channel is always taken from the matching record,
+    /// never guessed; if one route exists but cannot be opened the next is tried.
+    public let serviceUUIDs:[String]
+    public var serviceUUID:String { serviceUUIDs[0] }
+    private var records:[IOBluetoothSDPServiceRecord]=[]
+    private var nextRecord=0
+    private var lastOpenError:Error?
     private var channel: IOBluetoothRFCOMMChannel?
     private var opening: CheckedContinuation<Void,Error>?
     private var writing: TransportWrite?
@@ -20,11 +26,15 @@ import HeyBudsProtocol
     private var channelOpening=false
     private var isClosing=false
 
-    public init(address: String,serviceUUID:String="0000079A-D102-11E1-9B23-00025B00A5A5") throws {
+    public init(address: String,serviceUUIDs:[String]) throws {
+        guard !serviceUUIDs.isEmpty else { throw TransportFailure.unavailable("No control service UUID") }
         guard let device=IOBluetoothDevice(addressString:address) else { throw ProtocolError.disconnected }
         self.device=device
-        self.serviceUUID=serviceUUID
+        self.serviceUUIDs=serviceUUIDs
         super.init()
+    }
+    public convenience init(address: String,serviceUUID:String="0000079A-D102-11E1-9B23-00025B00A5A5") throws {
+        try self.init(address:address,serviceUUIDs:[serviceUUID])
     }
     public func open() async throws {
         guard opening == nil, channel == nil else { throw TransportFailure.unavailable("Control channel already opening") }
@@ -32,22 +42,18 @@ import HeyBudsProtocol
         try await withTaskCancellationHandler(operation: {
             try await withCheckedThrowingContinuation { continuation in
                 opening=continuation
-                timeout=Task { [weak self] in
-                    try? await Task.sleep(for:.seconds(10))
-                    guard !Task.isCancelled else { return }
-                    self?.failOpen(TransportFailure.unavailable("Control service connection timed out"))
-                }
+                startTimeout()
                 // Cached records alone are insufficient on some firmware. Refresh using the SDK callback.
                 let result=device.performSDPQuery(self)
                 if result != kIOReturnSuccess { failOpen(TransportFailure.unavailable("SDP query failed (\(result))")) }
                 else {
                     // Some macOS releases refresh the cache without delivering the SDP
-                    // callback. Match the same service UUID in that cache, never a bare port.
+                    // callback. Match the same service UUIDs in that cache, never a bare port.
                     sdpPoll=Task { [weak self] in
                         for _ in 0..<40 {
                             try? await Task.sleep(for:.milliseconds(50))
-                            guard !Task.isCancelled, let self, self.opening != nil, !self.isClosing else { return }
-                            if let record=self.device.getServiceRecord(for:Discovery.uuid(self.serviceUUID)) { self.openRecord(record); return }
+                            guard !Task.isCancelled, let self, self.opening != nil, !self.isClosing, !self.channelOpening else { return }
+                            if self.resolveRecords() { self.openNextRecord(); return }
                         }
                     }
                 }
@@ -56,36 +62,90 @@ import HeyBudsProtocol
     }
     @objc public func sdpQueryComplete(_ device: IOBluetoothDevice!, status: IOReturn) {
         guard opening != nil, !isClosing, !channelOpening else { return }
-        guard status == kIOReturnSuccess,
-              let record=self.device.getServiceRecord(for:Discovery.uuid(serviceUUID)) else {
-            failOpen(TransportFailure.unavailable("Earbud control service not found")); return
-        }
-        openRecord(record)
+        // A failed refresh can still leave a usable cached record, so inspect both.
+        if resolveRecords() { openNextRecord(); return }
+        failOpen(TransportFailure.unavailable(status == kIOReturnSuccess ? "Earbud control service not found" : "SDP query failed (\(status))"))
     }
     @objc public func remoteNameRequestComplete(_ device:IOBluetoothDevice!,status:IOReturn) { }
     @objc public func connectionComplete(_ device:IOBluetoothDevice!,status:IOReturn) { }
+    /// Resolve every known route from this device's SDP cache, preserving preference order.
+    @discardableResult private func resolveRecords() -> Bool {
+        var found:[IOBluetoothSDPServiceRecord]=[]
+        for service in serviceUUIDs {
+            guard let record=device.getServiceRecord(for:Discovery.uuid(service)) else { continue }
+            if !found.contains(where:{$0 === record}) { found.append(record) }
+        }
+        records=found
+        nextRecord=0
+        return !found.isEmpty
+    }
+    private func openNextRecord() {
+        guard !channelOpening, opening != nil, !isClosing else { return }
+        guard nextRecord < records.count else {
+            failOpen(lastOpenError ?? TransportFailure.unavailable("Earbud control service not found")); return
+        }
+        // Each documented route gets its own budget, so a route that never
+        // completes cannot use up the time reserved for the next one.
+        startTimeout()
+        let record=records[nextRecord]; nextRecord += 1
+        openRecord(record)
+    }
+    /// Arm (or re-arm) the per-route open timeout.
+    private func startTimeout() {
+        timeout?.cancel()
+        timeout=Task { [weak self] in
+            try? await Task.sleep(for:.seconds(10))
+            guard !Task.isCancelled else { return }
+            self?.openTimedOut()
+        }
+    }
+    private func openTimedOut() {
+        guard opening != nil, !isClosing else { return }
+        // Retire the stalled candidate instead of failing the whole connection:
+        // the remaining documented routes may still carry the control channel.
+        if channelOpening || nextRecord < records.count {
+            advanceAfterFailure(TransportFailure.timedOut)
+        } else {
+            failOpen(TransportFailure.timedOut)
+        }
+    }
     private func openRecord(_ record:IOBluetoothSDPServiceRecord) {
         guard !channelOpening, opening != nil, !isClosing else { return }
         channelOpening=true
         var id: BluetoothRFCOMMChannelID=0
         guard record.getRFCOMMChannelID(&id) == kIOReturnSuccess, id > 0 else {
-            failOpen(TransportFailure.unavailable("Control service has no RFCOMM channel")); return
+            advanceAfterFailure(TransportFailure.unavailable("Control service has no RFCOMM channel")); return
         }
         // Channel is accepted only from this specific service record, never guessed.
         var opened: IOBluetoothRFCOMMChannel?
         let result=self.device.openRFCOMMChannelAsync(&opened,withChannelID:id,delegate:self)
-        if result == kIOReturnSuccess { channel=opened }
-        else { failOpen(TransportFailure.unavailable("RFCOMM open failed (\(result))")) }
+        if result == kIOReturnSuccess,let opened { channel=opened }
+        else { advanceAfterFailure(TransportFailure.unavailable(result == kIOReturnSuccess ? "RFCOMM open returned no channel" : "RFCOMM open failed (\(result))")) }
+    }
+    /// Retire a failed candidate and try the next documented route, if any.
+    private func advanceAfterFailure(_ error:Error) {
+        lastOpenError=error
+        channel?.setDelegate(nil); channel?.close(); channel=nil
+        channelOpening=false
+        openNextRecord()
     }
     public func rfcommChannelOpenComplete(_ channel: IOBluetoothRFCOMMChannel!, status error: IOReturn) {
         guard !isClosing, opening != nil else { channel?.close(); return }
-        guard error == kIOReturnSuccess else { failOpen(TransportFailure.unavailable("RFCOMM connection failed (\(error))")); return }
-        self.channel=channel; timeout?.cancel(); timeout=nil; sdpPoll?.cancel(); sdpPoll=nil
+        // A late completion from a candidate that already failed over must be
+        // closed, otherwise it can hold the SPP channel for the next attempt.
+        guard channel === self.channel else { channel?.close(); return }
+        guard error == kIOReturnSuccess else {
+            advanceAfterFailure(TransportFailure.unavailable("RFCOMM connection failed (\(error))")); return
+        }
+        channelOpening=false
+        timeout?.cancel(); timeout=nil; sdpPoll?.cancel(); sdpPoll=nil
+        self.channel=channel
         let c=opening; opening=nil; c?.resume()
     }
     private func failOpen(_ error: Error) {
         let c=opening; opening=nil; timeout?.cancel(); timeout=nil; sdpPoll?.cancel(); sdpPoll=nil; channelOpening=false
         channel?.setDelegate(nil); channel?.close(); channel=nil
+        records=[]; nextRecord=0; lastOpenError=nil
         c?.resume(throwing:error)
     }
     public func send(_ bytes: Data) async throws {
@@ -127,6 +187,7 @@ import HeyBudsProtocol
     public func close() {
         isClosing=true; timeout?.cancel(); timeout=nil; sdpPoll?.cancel(); sdpPoll=nil; channelOpening=false
         channel?.setDelegate(nil); channel?.close(); channel=nil
+        records=[]; nextRecord=0; lastOpenError=nil
         let o=opening; opening=nil; o?.resume(throwing:ProtocolError.disconnected)
         let w=writing; writing=nil; w?.finish(.failure(ProtocolError.disconnected))
         writeBuffer=nil;writeRefcon=nil

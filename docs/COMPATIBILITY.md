@@ -7,15 +7,22 @@
 | OPPO / OnePlus / realme | 138 个产品 ID：57 / 32 / 49 | RFCOMM / BLE、电量、降噪、EQ、空间与游戏音效、多设备 |
 | vivo / iQOO | 43 个显示型号，保留 87 条原始配置与项目代号 | GAIA、电量、佩戴、固件、降噪、EQ、游戏、空间音频、查找、多设备 |
 | HUAWEI | 24 个型号路由及别名 | Legacy TLV、电量、降噪、EQ、10 段自定义 EQ、游戏、多设备 |
-| Xiaomi / Redmi | 1 条系列规则 | RCSP 电量；低延迟配置需有效状态回读 |
+| Xiaomi / Redmi | 1 条系列规则 + Buds 4 Pro | Buds 4 Pro：电量/充电、降噪+深度、EQ、双设备、自动接听、查找、手势、空间音频、佩戴；其他型号：RCSP 电量；低延迟配置需有效状态回读 |
 | EDIFIER | W820NB / W200BT / EDIFIER，共 3 条规则 | SPP 电量及降噪；纯 BLE 型号未接入 |
 | Sony | WF-1000XM5 / WH-1000XM5 / WH-CH720N，共 3 个型号 | MDR V2 RFCOMM、电量、降噪、通透强度和语音聚焦；待实机验证 |
 
-合计 212 条记录，包含产品 ID、显示型号和系列规则，不等于 212 款实机通过。完整名称见[型号清单](SUPPORTED_DEVICES.md)；机器可读目录可运行 `swift run heybuds-probe catalog` 生成，不在文档中重复存储。
+合计 213 条记录，包含产品 ID、显示型号和系列规则，不等于 213 款实机通过。完整名称见[型号清单](SUPPORTED_DEVICES.md)；机器可读目录可运行 `swift run heybuds-probe catalog` 生成，不在文档中重复存储。
 
 原始资源与指纹见[上游来源](UPSTREAM.md)。vivo 原表保留在 `docs/reference/VivoDeviceModels.json`，归一化目录保留所有 `sourceEntries`；华为能力来自 `HuaweiModels.cs`。导入工具为 `scripts/import-brand-models.py`。
 
 Apple / Beats 由 macOS 原生管理，已从本应用移除。
+
+## Xiaomi / Redmi
+
+- Xiaomi Buds 4 Pro 已在 HeyBuds/macOS 实机验证（2026-10-31，macOS 27.0，耳机固件 2.5.7.4）：连接、左右耳/盒电量与充电、降噪/通透与三档深度、6 个 EQ 预设、双设备、自动接听、查找、左右耳手势、空间音频、佩戴/入盒状态；所有写入均重新读取确认。
+- 其他 Xiaomi/Redmi 型号采用系列识别，提供 RCSP 电量；低延迟需有效状态回读。Buds 4 Pro 使用独立 MMA 配置，不影响这些型号。
+- 其他型号未做逐型号实机验收；未确认的 EQ、深度和高级开关不显示。
+- 自定义 EQ、低延迟和个性化降噪在该固件无有效回读，不开放。控制通道同一时间只能由一个设备占用；Buds 4 Pro 会依次尝试快连与小爱两条 SDP 路由，单条路由超时也会切换到下一条，全部失败后提示常见原因（手机端占用、超出范围或上次连接未结束）。
 
 ## OPPO Enco X4
 

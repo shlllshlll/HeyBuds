@@ -29,8 +29,14 @@ import HeyBudsBluetooth
                 if args.contains("--ble") || family.transportKinds(for:device.name) == ["BLE"] {
                     guard family.transportKinds(for:device.name).contains("BLE") else { throw ProtocolError.unsupported }
                     transport=BLETransport(name:device.name,profile:family == .bose ? .bose : .oppo)
-                } else if let address=device.classicAddress,let service=device.controlServiceUUID ?? family.serviceUUID(for:device.name) {
-                    transport=try RFCOMMTransport(address:address,serviceUUID:service)
+                } else if let address=device.classicAddress {
+                    // Keep the route set and the wire layout derived from the same model.
+                    let mma=catalog.model(productID:nil,name:device.name,override:nil)?.isXiaomiMMA == true
+                    let services = mma
+                        ? family.controlServiceUUIDs(for:device.name,xiaomiMMA:true)
+                        : (device.controlServiceUUIDs.isEmpty ? family.controlServiceUUIDs(for:device.name) : device.controlServiceUUIDs)
+                    guard !services.isEmpty else { throw ProtocolError.unsupported }
+                    transport=try RFCOMMTransport(address:address,serviceUUIDs:services)
                 } else { throw ProtocolError.unsupported }
                 let session=DeviceSession(transport:transport,name:device.name,catalog:catalog,family:family)
                 defer { session.close() }

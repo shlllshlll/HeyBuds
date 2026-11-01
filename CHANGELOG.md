@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- Add Xiaomi Buds 4 Pro support after hardware verification on macOS: connection, battery/charging for both buds and the case, noise/transparency and depth, six EQ presets, dual-device, auto-answer, find, gestures, spatial audio and wear/in-case state, with fresh readback for every write. 新增 Xiaomi Buds 4 Pro 实机支持：连接、左右耳/盒电量与充电、降噪/通透与深度、6 个 EQ 预设、双设备、自动接听、查找、手势、空间音频、佩戴/入盒；每次写入都重新读取确认。
+- Keep the existing Xiaomi/Redmi family behavior unchanged: family detection, RCSP battery and low-latency state readback. The new MMA path is model-gated to Buds 4 Pro. 其他 Xiaomi/Redmi 型号保持系列识别、RCSP 电量及低延迟状态回读；新 MMA 路径只对 Buds 4 Pro 启用。
+- Try the Fast Connect and XiaoAi SDP routes in order, including when a route times out, and explain the usual causes when neither opens. 依次尝试快连与小爱两条 SDP 路由，单条路由超时也会切换；两条都失败时说明常见原因。
+
+### 致谢 / Thanks
+
+感谢以下项目分享小米 MMA 协议资料。 Thanks to these projects for documenting the Xiaomi MMA protocol:
+
+- **XiaomiTWS**（[web1n/android_packages_apps_XiaomiTWS](https://github.com/web1n/android_packages_apps_XiaomiTWS)，Apache-2.0）：MMA 配置 ID 与佩戴／手势／查找／型号字段布局参考，未复制源代码。
+- **TWS-Pods-PC**（[Zhaoyi-ya/TWS-Pods-PC](https://github.com/Zhaoyi-ya/TWS-Pods-PC)，GPL-3.0）：仅用于交叉核对 MMA 帧结构与配置语义，未复制源代码。
+
 ## 0.5.0 — 2026-10-26
 
 新增 16 款耳机的初步支持，保留原有型号与功能。所有新增型号的 HeyBuds/macOS 实机兼容性仍待验证；具体功能取决于型号、固件和设备响应。

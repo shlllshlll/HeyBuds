@@ -159,3 +159,12 @@ import HeyBudsProtocol
     f.app.overrideID="huawei:FreeBudsPro3"
     #expect(f.app.overrideID == "06EC10" && f.app.error != nil)
 }
+
+@Test @MainActor func connectionFailuresUseTypedGuidance() {
+    // The guidance is selected by error type, not by matching the English text.
+    let timedOut=AppModel.connectionFailureMessage(kind:"RFCOMM",error:TransportFailure.timedOut)
+    #expect(timedOut != "RFCOMM: Control service connection timed out")
+    #expect(timedOut.contains("控制通道") || timedOut.lowercased().contains("control channel"))
+    let missing=AppModel.connectionFailureMessage(kind:"RFCOMM",error:TransportFailure.unavailable("Earbud control service not found"))
+    #expect(missing == "RFCOMM: Earbud control service not found")
+}

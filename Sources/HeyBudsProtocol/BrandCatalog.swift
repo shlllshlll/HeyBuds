@@ -24,9 +24,32 @@ public enum EarbudFamily: String, Codable, CaseIterable, Sendable {
         if ["Pixel Buds Pro","Pixel Buds Pro 2"].contains(where:{n == normalize($0) || n == normalize("Google "+$0)}) { return .google }
         return nil
     }
+    /// Broad service set used only to identify the family during discovery.
+    /// The Xiaomi MMA Fast Connect route is deliberately excluded: adding it
+    /// here would change family detection for every Xiaomi/Redmi model, not
+    /// just the verified Buds 4 Pro profile.
     public var classicServiceUUIDs:[String] {
         if self == .sony { return [SonyProtocol.serviceV2,SonyProtocol.serviceV1] }
         return serviceUUID.map { [$0] } ?? []
+    }
+    /// Ordered SDP routes that may carry this model's control protocol.
+    /// Legacy Xiaomi models keep the original XiaoAi route; only the verified
+    /// MMA profile prefers Fast Connect and then falls back to XiaoAi.
+    public func controlServiceUUIDs(for name:String,xiaomiMMA:Bool=false) -> [String] {
+        if self == .sony { return SonyProtocol.serviceUUID(for:name).map { [$0] } ?? [] }
+        if self == .xiaomi { return xiaomiMMA ? XiaomiProtocol.services : [XiaomiProtocol.xiaoAiService] }
+        return classicServiceUUIDs
+    }
+    /// Resolve the routes handed to the transport.
+    /// The MMA profile keeps every documented route: the transport reads each
+    /// SDP record when it opens and retires a route that fails or times out.
+    /// Other families keep the original behavior of preferring a route present
+    /// in the cache and falling back to the only cached service.
+    public func resolvedControlServiceUUIDs(for name:String,available:[String],xiaomiMMA:Bool=false) -> [String] {
+        if xiaomiMMA { return controlServiceUUIDs(for:name,xiaomiMMA:true) }
+        let matched=controlServiceUUIDs(for:name).filter { available.contains($0) }
+        if !matched.isEmpty { return matched }
+        return available.count == 1 ? available : []
     }
     public func serviceUUID(for name:String) -> String? {
         self == .sony ? SonyProtocol.serviceUUID(for:name) ?? serviceUUID : serviceUUID
@@ -36,7 +59,7 @@ public enum EarbudFamily: String, Codable, CaseIterable, Sendable {
         case .oppo:return "0000079A-D102-11E1-9B23-00025B00A5A5"
         case .vivo:return "00000837-D102-11E1-9B23-00025B00A5A5"
         case .huawei:return "00001101-0000-1000-8000-00805F9B34FB"
-        case .xiaomi:return "00001101-0000-1000-8000-008584D01810"
+        case .xiaomi:return XiaomiProtocol.xiaoAiService
         case .edifier:return "EDF00000-EDFE-DFED-FEDF-EDFEDFEDFEDF"
         case .sony:return SonyProtocol.serviceV2
         case .samsung:return SamsungProfile.service

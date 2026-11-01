@@ -39,3 +39,12 @@ The following references inform the Samsung, Google, Bose, Nothing/CMF and addit
 The Sony implementation uses the MIT-licensed SonyHeadphonesClient reference and independently expressed protocol facts; it does not incorporate AGPL code from sonyctl. openNothing is likewise used only to cross-check protocol facts because the reference snapshot does not contain the standalone license linked by that project. Other references retain their applicable notices; a repository-wide license label does not replace notices on individual or derived files.
 
 These references establish protocol and model evidence. Their hardware observations do not establish HeyBuds/macOS compatibility: all 16 models added in 0.5.0 have initial support and still require verification on the corresponding devices.
+
+## Xiaomi MMA references
+
+| Reference | License | Use |
+| --- | --- | --- |
+| [XiaomiTWS](https://github.com/web1n/android_packages_apps_XiaomiTWS) | Apache-2.0 | MMA config IDs and in-ear/gesture/find/model field layouts; independently reimplemented in Swift, no source code copied |
+| [TWS-Pods-PC](https://github.com/Zhaoyi-ya/TWS-Pods-PC) | GPL-3.0 | Xiaomi MMA frame layout and config semantics cross-check; no source code copied |
+
+The Buds 4 Pro profile uses the public config facts above and was verified on macOS with a physical device. Other Xiaomi/Redmi models remain on the family fallback until their function/config data is confirmed. The fingerprint table in [upstream-sources.json](upstream-sources.json) is pinned to XiaomiTWS `0927e57c` and TWS-Pods-PC `3350f424`; both repositories have been unchanged since before the hardware verification.
