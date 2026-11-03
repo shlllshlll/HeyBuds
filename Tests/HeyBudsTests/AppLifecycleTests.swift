@@ -58,7 +58,7 @@ import HeyBudsProtocol
         defaults.set(false,forKey:"notifyLow")
         var services=AppServices()
         services.monitor=nil
-        services.discover={ [devices] _ in devices }
+        services.discover={ [devices] _ in Discovery.Result(admitted:devices) }
         services.hasCompetitor={ false }
         services.openAudio={ _ in Issue.record("Unexpected real audio connection") }
         services.closeAudio={ _ in Issue.record("Unexpected real audio disconnect") }

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Filter the paired-device list by identity rather than by name: a known Audio/Video Class of Device is accepted, a known computer/phone/LAN/peripheral/imaging/wearable class is rejected, and an unknown class requires an A2DP Sink or Hands-Free record because Bluetooth LE peripherals report no class at all. 按设备身份而不是名称筛选已配对列表：Class of Device 为音频类时接受，为电脑/手机/局域网/外设/成像/穿戴时排除；类别未知（BLE 外设常见）时要求存在 A2DP Sink 或 Hands-Free 记录。
+- Add a manual fallback listing the filtered devices, so a misjudged earbud can be added back and a misdetected device hidden; both choices persist across launches. 增加手动兜底：列出被过滤的设备，可把误判的耳机加回来、把误识别的设备隐藏，两种选择都会持久保存。
+
 ## 0.6.1-beta.2 — 2026-11-02
 
 - 新增 Apple Silicon Mac 上的 macOS 15 支持，降噪、导航和操作按钮使用兼容样式，保留原有布局与功能。
