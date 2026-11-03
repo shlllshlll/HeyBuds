@@ -16,6 +16,14 @@ func L(_ chinese:String,_ english:String) -> String { UserDefaults.standard.stri
     @ObservationIgnored private let services:AppServices
     private(set) var sessionID=UUID()
     var candidates:[DeviceCandidate]=[]
+    /// Paired devices that look like they carry a control protocol but were
+    /// filtered out by the automatic identity check, plus devices hidden by hand.
+    private(set) var hiddenDevices:[DeviceCandidate]=[]
+    private(set) var discovered=Discovery.Result()
+    /// Manual overrides survive restarts: the automatic check is a heuristic,
+    /// so the user can always add a device back or take one out.
+    @ObservationIgnored private var manualIncluded:Set<String>
+    @ObservationIgnored private var manualExcluded:Set<String>
     var selectedID:String? { didSet { defaults.set(selectedID,forKey:"selectedDevice") } }
     var phase="idle"
     var error:String?
@@ -83,6 +91,8 @@ func L(_ chinese:String,_ english:String) -> String { UserDefaults.standard.stri
         notifyLow=defaults.bool(forKey:"notifyLow")
         lowThreshold=defaults.object(forKey:"lowThreshold") as? Int ?? 20
         appearance=defaults.string(forKey:"appearance") ?? "system"
+        manualIncluded=Set(defaults.stringArray(forKey:"manualInclude") ?? [])
+        manualExcluded=Set(defaults.stringArray(forKey:"manualExclude") ?? [])
     }
     var candidate:DeviceCandidate? { candidates.first { $0.id == selectedID } }
     var state:DeviceState { _ = revision; return session?.state ?? DeviceState() }
@@ -168,24 +178,50 @@ func L(_ chinese:String,_ english:String) -> String { UserDefaults.standard.stri
         if let scanTask { await scanTask.value; return }
         let task=Task { [weak self] in
             guard let catalog=self?.catalog else { return }
-            let devices=await self?.services.discover(catalog) ?? []
+            let result=await self?.services.discover(catalog) ?? Discovery.Result()
             guard let self, !Task.isCancelled else { return }
-            self.candidates=devices
-            self.services.monitor?.watch(devices)
-            if !self.ready, !self.connecting {
-                if self.candidate?.audioConnected != true,
-                   let next=ConnectionPresence.preferredID(connectedIDs:self.knownConnectedDevices.map(\.id),selectedID:self.selectedID) {
-                    self.selectedID=next
-                } else if self.selectedID == nil || !devices.contains(where:{$0.id == self.selectedID}) {
-                    self.selectedID=devices.first?.id
-                }
-            }
-            self.updateConnectionPresence()
+            self.discovered=result
+            self.applyDiscoveredDevices()
         }
         scanTask=task
         await task.value
         scanTask=nil
     }
+    /// Automatic candidates minus manual exclusions, plus manual inclusions.
+    /// A selection that is no longer listed is dropped so the app never drives a
+    /// device the user hid.
+    private func applyDiscoveredDevices() {
+        candidates=discovered.admitted.filter { !manualExcluded.contains($0.id) }
+            + discovered.rejected.filter { manualIncluded.contains($0.id) }
+        hiddenDevices=discovered.rejected.filter { !manualIncluded.contains($0.id) }
+            + discovered.admitted.filter { manualExcluded.contains($0.id) }
+        services.monitor?.watch(candidates)
+        if let id=selectedID, !candidates.contains(where:{$0.id == id}) {
+            if ready || connecting { disconnect(audio:false) }
+            selectedID=nil
+        }
+        if !ready, !connecting {
+            if candidate?.audioConnected != true,
+               let next=ConnectionPresence.preferredID(connectedIDs:knownConnectedDevices.map(\.id),selectedID:selectedID) {
+                self.selectedID=next
+            } else if selectedID == nil || !candidates.contains(where:{$0.id == selectedID}) {
+                self.selectedID=candidates.first?.id
+            }
+        }
+        updateConnectionPresence()
+    }
+    /// Add a filtered-out device back or hide a misdetected one, then persist it.
+    func setManualVisibility(_ id:String,visible:Bool) {
+        if visible { manualIncluded.insert(id); manualExcluded.remove(id) }
+        else { manualExcluded.insert(id); manualIncluded.remove(id) }
+        defaults.set(manualIncluded.sorted(),forKey:"manualInclude")
+        defaults.set(manualExcluded.sorted(),forKey:"manualExclude")
+        applyDiscoveredDevices()
+        revision += 1; onStatusChange?()
+    }
+    var hasManualVisibility:Bool { !manualIncluded.isEmpty || !manualExcluded.isEmpty }
+    func isManuallyVisible(_ id:String) -> Bool { manualIncluded.contains(id) }
+    func isManuallyHidden(_ id:String) -> Bool { manualExcluded.contains(id) }
     private func updateConnectionPresence() {
         let devices=knownConnectedDevices
         let added=connectionPresence.update(Set(devices.map(\.id)))

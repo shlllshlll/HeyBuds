@@ -5,6 +5,8 @@
 - Add Xiaomi Buds 4 Pro support after hardware verification on macOS: connection, battery/charging for both buds and the case, noise/transparency and depth, six EQ presets, dual-device, auto-answer, find, gestures, spatial audio and wear/in-case state, with fresh readback for every write. 新增 Xiaomi Buds 4 Pro 实机支持：连接、左右耳/盒电量与充电、降噪/通透与深度、6 个 EQ 预设、双设备、自动接听、查找、手势、空间音频、佩戴/入盒；每次写入都重新读取确认。
 - Keep the existing Xiaomi/Redmi family behavior unchanged: family detection, RCSP battery and low-latency state readback. The new MMA path is model-gated to Buds 4 Pro. 其他 Xiaomi/Redmi 型号保持系列识别、RCSP 电量及低延迟状态回读；新 MMA 路径只对 Buds 4 Pro 启用。
 - Try the Fast Connect and XiaoAi SDP routes in order, including when a route times out, and explain the usual causes when neither opens. 依次尝试快连与小爱两条 SDP 路由，单条路由超时也会切换；两条都失败时说明常见原因。
+- Filter the paired-device list by identity rather than by name: a known Audio/Video Class of Device is accepted, a known computer/phone/LAN/peripheral/imaging/wearable class is rejected, and an unknown class requires an A2DP Sink or Hands-Free record because Bluetooth LE peripherals report no class at all. 按设备身份而不是名称筛选已配对列表：Class of Device 为音频类时接受，为电脑/手机/局域网/外设/成像/穿戴时排除；类别未知（BLE 外设常见）时要求存在 A2DP Sink 或 Hands-Free 记录。
+- Add a manual fallback listing the filtered devices, so a misjudged earbud can be added back and a misdetected device hidden; both choices persist across launches. 增加手动兜底：列出被过滤的设备，可把误判的耳机加回来、把误识别的设备隐藏，两种选择都会持久保存。
 
 ### 致谢 / Thanks
 

@@ -44,6 +44,7 @@ struct PanelView: View {
     @ViewState<CGFloat> private var contentHeight=300
     @ViewState<EQEditingContext?> private var editEQ:EQEditingContext? = nil
     @ViewState<Bool> private var findConfirmation=false
+    @ViewState<Bool> private var manualDevices=false
     private var maxHeight:CGFloat { max(280,(NSScreen.main?.visibleFrame.height ?? 800)-100) }
     var body:some View {
         ScrollView {
@@ -75,6 +76,7 @@ struct PanelView: View {
         // Keep page replacement immediate to avoid flashing newly inserted switches.
         .animation(reduceMotion ? nil : .smooth(duration:0.25),value:app.ready)
         .sheet(item:$editEQ) { context in EQEditor(app:app,context:context) { if editEQ?.id == context.id { editEQ=nil } } }
+        .sheet(isPresented:$manualDevices) { ManualDeviceSheet(app:app) }
         .alert(L("查找耳机","Find earbuds"),isPresented:$findConfirmation) {
             Button(L("开始响铃","Start ringing")) { app.perform { try await $0.find(true) } }
             Button(L("取消","Cancel"),role:.cancel) { }
@@ -103,6 +105,7 @@ struct PanelView: View {
                     }
                     Divider()
                     Button(L("重新查找设备","Refresh devices")) { Task { await app.rescan() } }
+                    Button(L("手动选择设备…","Choose devices manually…")) { manualDevices=true }
                     Button(L("蓝牙设置…","Bluetooth Settings…")) { app.bluetoothSettings() }
                 } label: {
                     Text(app.bluetoothConnected ? app.title : L("未连接","Not connected"))
