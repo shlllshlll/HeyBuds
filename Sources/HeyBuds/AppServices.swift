@@ -5,7 +5,7 @@ import HeyBudsProtocol
 
 /// System boundaries are injectable so lifecycle tests never discover or open radios.
 @MainActor struct AppServices {
-    var discover:(ModelCatalog) async -> [DeviceCandidate] = { await Discovery.paired(catalog:$0) }
+    var discover:(ModelCatalog) async -> Discovery.Result = { await Discovery.pairedDevices(catalog:$0) }
     var monitor:BluetoothConnectionMonitor? = BluetoothConnectionMonitor()
     var makeSession:(DeviceCandidate,EarbudFamily,String,String?,ModelCatalog) throws -> DeviceSession = { device,family,kind,override,catalog in
         let transport=try ControlTransportFactory.make(device:device,family:family,kind:kind)

@@ -52,13 +52,13 @@ import HeyBudsProtocol
     let retry=Latch()
     let devices=[DeviceCandidate(id:"fixture-a",name:"OPPO Enco Air5 Pro",audioConnected:true,classicAddress:nil,family:.oppo),
                  DeviceCandidate(id:"fixture-b",name:"OPPO Enco Air5 Pro",audioConnected:true,classicAddress:nil,family:.oppo)]
-    init(discover:((ModelCatalog) async -> [DeviceCandidate])?=nil) throws {
+    init(discover:((ModelCatalog) async -> Discovery.Result)?=nil) throws {
         defaults=try #require(UserDefaults(suiteName:suite))
         defaults.set(false,forKey:"autoReconnect")
         defaults.set(false,forKey:"notifyLow")
         var services=AppServices()
         services.monitor=nil
-        services.discover=discover ?? { [devices] _ in devices }
+        services.discover=discover ?? { [devices] _ in Discovery.Result(admitted:devices) }
         services.hasCompetitor={ false }
         services.openAudio={ _ in Issue.record("Unexpected real audio connection") }
         services.closeAudio={ _ in Issue.record("Unexpected real audio disconnect") }
@@ -154,9 +154,9 @@ import HeyBudsProtocol
     let f=try AppFixture(discover:{ _ in
         scans += 1
         switch scans {
-        case 1: await old.wait(); return [before]
-        case 2: await fresh.wait(); return [after]
-        default: Issue.record("Concurrent callers should share the wake scan"); return []
+        case 1: await old.wait(); return Discovery.Result(admitted:[before])
+        case 2: await fresh.wait(); return Discovery.Result(admitted:[after])
+        default: Issue.record("Concurrent callers should share the wake scan"); return Discovery.Result()
         }
     })
     defer { f.cleanup();old.release();fresh.release() }
@@ -180,7 +180,7 @@ import HeyBudsProtocol
 
 @Test @MainActor func sleepingAndStoppedAppSkipDiscovery() async throws {
     var scans=0
-    let f=try AppFixture(discover:{ _ in scans += 1;return [] })
+    let f=try AppFixture(discover:{ _ in scans += 1;return Discovery.Result() })
     defer { f.cleanup() }
     f.app.willSleep()
     await f.app.rescan()
