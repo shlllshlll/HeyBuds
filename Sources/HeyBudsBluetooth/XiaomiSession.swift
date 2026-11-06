@@ -106,7 +106,7 @@ import HeyBudsProtocol
     private func readInfo() async throws {
         guard let profile else { throw ProtocolError.unsupported }
         let token=generation,seq=try nextSequence()
-        let frame=try await channel.request(XiaomiFrameCodec.encode(XiaomiFrame(type:profile.requestType,opcode:2,sequence:seq,payload:[255,255,255,255])),matching:{ [self] frame in
+        let frame=try await channel.request(XiaomiFrameCodec.encode(XiaomiFrame(type:profile.requestType,opcode:2,sequence:seq,payload:profile.deviceInfoMask)),matching:{ [self] frame in
             if acceptsReply(frame),frame.opcode == 2,frame.sequence == seq { return true }
             return profile == .redmi6lite && frame.isRequest && frame.opcode == 0x0E &&
                 XiaomiProtocol.records(frame.payload,idBytes:1)?[0].flatMap(XiaomiProtocol.batteries) != nil
@@ -119,26 +119,44 @@ import HeyBudsProtocol
         }
         guard frame.status == 0,let records=XiaomiProtocol.records(frame.payload,idBytes:1) else { throw ProtocolError.invalidPayload }
         if let identity=XiaomiProtocol.identity(records) {
-            guard profile.accepts(vendor:identity.vendor,product:identity.product) else { throw ProtocolError.unsupported }
-            state.productID=String(format:"%04X:%04X",identity.vendor,identity.product)
-        } else if profile != .clip && profile != .redmi6lite { throw ProtocolError.invalidPayload }
-        guard let bytes=records[7],let batteries=XiaomiProtocol.batteries(bytes) else { throw ProtocolError.invalidPayload }
-        state.batteries=batteries;state.observedQueries.insert(Command.battery)
+            // A profile without a recorded PID keeps the reported identity visible
+            // but cannot reject the device on it; the exact model name already
+            // selected this profile.
+            if profile.validatesProductID {
+                guard profile.accepts(vendor:identity.vendor,product:identity.product) else { throw ProtocolError.unsupported }
+            }
+            if identity.vendor == 0x2717 { state.productID=String(format:"%04X:%04X",identity.vendor,identity.product) }
+        } else if profile != .clip && profile != .redmi6lite && profile.validatesProductID { throw ProtocolError.invalidPayload }
+        guard let bytes=records[7],applyBattery(bytes) else { throw ProtocolError.invalidPayload }
         if let bytes=records[1],let firmware=XiaomiProtocol.firmware(bytes) { state.firmware=firmware;state.observedQueries.insert(Command.firmware) }
         identified=true;onChange?()
+    }
+    /// Publish a DeviceInfo/notification battery triple.
+    /// The verified Buds 4 Pro firmware reports 0 for a bud that has no reading;
+    /// showing 0% there is wrong, so that slot is cleared instead.
+    private func applyBattery(_ bytes:[UInt8]) -> Bool {
+        guard var batteries=XiaomiProtocol.batteries(bytes) else { return false }
+        if profile?.zeroBatteryIsUnknown == true {
+            for (slot,reading) in batteries where reading.percent == 0 { batteries[slot]=nil }
+        }
+        state.batteries=batteries;state.observedQueries.insert(Command.battery)
+        return true
     }
     private func valid(_ id:UInt16,_ value:[UInt8]) -> Bool {
         guard allowedConfigs.contains(id),let model else { return false }
         switch id {
         case 2:return XiaomiProtocol.gestures(value) != nil
+        case 3:return value.count == 1 && value[0] <= 1
         case 4,47:return value.count == 1 && value[0] <= 1
         case 7:return value.count == 1 // Unknown preset IDs remain visible but cannot be written.
+        case 9:return value.count == 2 && value[0] <= 1
         case 11:
-            guard let mode=XiaomiProtocol.noise(value),!model.noiseOptions.isEmpty else { return false }
+            guard let mode=XiaomiProtocol.noise(value,options:model.noiseOptions),!model.noiseOptions.isEmpty else { return false }
             if profile == .redmi8pro { return mode == .anc ? value[1] <= 19 : mode == .transparency ? value[1] <= 2 : value[1] == 0 }
             return true
         case 12:return value.count == 1 && value[0] & 0xF0 == 0
         case 29:return value.count == 1 && value[0] & 0xF0 == 0
+        case 30:return value.count == 1 // Preference bits outside bit 0 are retained, not interpreted.
         case 55:return XiaomiProtocol.customEQ(value) != nil
         default:return false
         }
@@ -148,13 +166,18 @@ import HeyBudsProtocol
         configs[id]=value;unavailable.remove(id)
         switch id {
         case 11:
-            state.noise=XiaomiProtocol.noise(value)
+            state.noise=XiaomiProtocol.noise(value,options:model.noiseOptions)
             if let mode=state.noise { noiseStrengths[mode]=value[1] }
             noiseRevision &+= 1;state.observedQueries.insert(Command.noise)
         case 7:state.eq=value[0];state.observedQueries.insert(Command.equalizer)
+        case 3:state.switches[0x12]=value[0] == 1;state.observedQueries.insert(Command.switches)
         case 4:state.switches[0x11]=value[0] == 1;state.observedQueries.insert(Command.switches)
         case 47:state.switches[6]=value[0] == 1;state.observedQueries.insert(Command.switches)
         case 29:state.spatial=value[0] & 1 == 0 ? 0 : value[0] & 8 != 0 ? 2 : 1;state.observedQueries.insert(Command.spatial)
+        case 30:
+            // The spatial on/off byte is read from 0x001E; the matching write is
+            // 0x001D. Bit 0 is the switch, the other bits are retained preferences.
+            state.switches[0x1B]=value[0] & 1 != 0;state.observedQueries.insert(Command.switches)
         case 12:
             state.placement[.left]=value[0] & 8 != 0 ? 3 : value[0] & 2 != 0 ? 4 : 1
             state.placement[.right]=value[0] & 4 != 0 ? 3 : value[0] & 1 != 0 ? 4 : 1
@@ -194,10 +217,13 @@ import HeyBudsProtocol
             for (id,value) in records { apply(id,value) }
         } else if frame.opcode == 0x0E,let records=XiaomiProtocol.records(frame.payload,idBytes:1) {
             let batteryID:UInt16=profile == .clip ? 4 : 0
-            if let bytes=records[batteryID],let batteries=XiaomiProtocol.batteries(bytes) {
-                state.batteries=batteries;state.observedQueries.insert(Command.battery);onChange?()
-            }
-            if profile != .clip,let noise=records[4],noise.count == 1,let mode=[UInt8(0):NoiseMode.off,1:.anc,2:.transparency][noise[0]],model?.noiseOptions.isEmpty == false {
+            if let bytes=records[batteryID],applyBattery(bytes) { onChange?() }
+            // A one-byte noise notification cannot distinguish light/medium/deep,
+            // so it is ignored for a model whose modes carry an ANC level. Those
+            // profiles confirm noise from the config readback instead.
+            if profile != .clip,let noise=records[4],noise.count == 1,
+               let mode=[UInt8(0):NoiseMode.off,1:.anc,2:.transparency][noise[0]],
+               model?.noiseOptions.contains(where:{ $0.mode == mode && $0.writeBytes.count < 2 }) == true {
                 state.noise=mode;noiseRevision &+= 1;onChange?()
             }
         }
@@ -228,6 +254,11 @@ import HeyBudsProtocol
         var result:[FeatureDefinition]=[]
         if state.switches[4] != nil { result.append(FeatureDefinition("wear",4)) }
         if configs[4] != nil { result.append(FeatureDefinition("dual",0x11)) }
+        // Verified Buds 4 Pro switches. Auto answer is config 0x0003; the spatial
+        // on/off byte is read from 0x001E and written through 0x001D. Only models
+        // that declare those config IDs can ever observe them.
+        if configs[3] != nil { result.append(FeatureDefinition("autoAnswer",0x12)) }
+        if configs[30] != nil { result.append(FeatureDefinition("spatialSound",0x1B)) }
         return result
     }
     func canQuery(_ command:UInt16) -> Bool {
@@ -243,8 +274,13 @@ import HeyBudsProtocol
         case Command.setCustomEQ:guard state.eq == 10,configs[55] != nil else { return false };read=Command.customEQ
         case Command.setGestures:guard configs[2] != nil else { return false };read=Command.gestures
         case Command.setSpatial:guard configs[29] != nil else { return false };read=Command.spatial
-        case Command.setSwitch:guard state.switches[4] != nil || configs[4] != nil || configs[47] != nil else { return false };read=Command.switches
-        case Command.find:guard model?.function["findDevice"].enabled == true else { return false };read=Command.wear
+        case Command.setSwitch:
+            guard state.switches[4] != nil || configs[4] != nil || configs[3] != nil || configs[30] != nil || configs[47] != nil else { return false }
+            read=Command.switches
+        case Command.find:
+            guard model?.function["findDevice"].enabled == true else { return false }
+            if profile?.confirmsFindByReadback == true, configs[9] == nil { return false }
+            read=Command.wear
         default:return false
         }
         return reading == nil || reading == read
@@ -259,9 +295,16 @@ import HeyBudsProtocol
         throw ProtocolError.readbackMismatch
     }
     func setNoise(_ mode:NoiseMode) async throws -> WriteOutcome {
-        guard canWrite(Command.setNoise),let code=[NoiseMode.off:UInt8(0),.anc:1,.transparency:2][mode] else { throw ProtocolError.unsupported }
+        guard canWrite(Command.setNoise) else { throw ProtocolError.unsupported }
         let token=generation;try await operations.acquire();defer { operations.release() };try check(token)
         if profile != .redmi6lite { _ = try await readConfig(11) }
+        if profile?.noiseWriteByConfig == true {
+            // The verified Buds 4 Pro layout writes config 0x000B with the two
+            // declared bytes, so light/medium/deep are part of the same write.
+            guard let model,let option=model.noiseOptions.first(where:{$0.mode == mode}),option.writeBytes.count == 2 else { throw ProtocolError.unsupported }
+            return try await writeConfig(11,option.writeBytes,confirm:{ XiaomiProtocol.noise($0,options:model.noiseOptions) == mode })
+        }
+        guard let code=[NoiseMode.off:UInt8(0),.anc:1,.transparency:2][mode] else { throw ProtocolError.unsupported }
         if profile == .redmi8pro {
             // C0/F2 is captured on the Mac endpoint. Retain an observed strength
             // for the target mode; zero is the documented first level/preset.
@@ -298,7 +341,24 @@ import HeyBudsProtocol
             _ = try await readWear();try await send(8,[2,6,enabled ? 0 : 1])
             guard try await readWear() == enabled else { throw ProtocolError.readbackMismatch };return .confirmed
         }
-        let id:UInt16=feature.switchID == 6 ? 47 : 4
+        if feature.switchID == 0x1B {
+            // Write the retained preference byte to 0x001D and confirm it from the
+            // readable mirror 0x001E; bit 0 is the switch.
+            let current=try await readConfig(30)
+            let next:UInt8=(current[0] & ~UInt8(1)) | (enabled ? 1 : 0)
+            for attempt in 0..<3 {
+                try await send(0xF2,XiaomiProtocol.config(29,[next]))
+                if try await readConfig(30) == [next] { return .confirmed }
+                if attempt < 2 { try await Task.sleep(for:.milliseconds(120)) }
+            }
+            throw ProtocolError.readbackMismatch
+        }
+        let id:UInt16
+        switch feature.switchID {
+        case 6: id=47
+        case 0x12: id=3
+        default: id=4
+        }
         _ = try await readConfig(id)
         return try await writeConfig(id,[enabled ? 1 : 0],confirm:{ $0 == [enabled ? 1 : 0] })
     }
@@ -330,6 +390,12 @@ import HeyBudsProtocol
         let token=generation;try await operations.acquire();defer { operations.release() };try check(token)
         guard var expected=XiaomiProtocol.gestures(try await readConfig(2)),var pair=expected[type] else { throw ProtocolError.invalidPayload }
         pair[Int(entry.side-1)]=value;expected[type]=pair
+        if profile?.writesWholeGestureTable == true {
+            // The verified Buds 4 Pro firmware replaces the whole triple table, so
+            // every reported row is sent back and unassigned sides stay 0xFF.
+            let table:[UInt8]=expected.keys.sorted().flatMap { key in [key,expected[key]![0],expected[key]![1]] }
+            return try await writeConfig(2,table,confirm:{ XiaomiProtocol.gestures($0) == expected })
+        }
         let update:[UInt8]=[type,entry.side == 1 ? value : 255,entry.side == 2 ? value : 255]
         return try await writeConfig(2,update,confirm:{ XiaomiProtocol.gestures($0) == expected })
     }
@@ -338,7 +404,12 @@ import HeyBudsProtocol
         let token=generation;try await operations.acquire();defer { operations.release() };try check(token)
         if enabled { guard try await readConfig(12)[0] & 12 == 0 else { throw ProtocolError.unsupported } }
         try await send(0xF2,XiaomiProtocol.config(9,[enabled ? 1 : 0,3]))
-        return .sent // A sound request has no independently readable completion state.
+        guard profile?.confirmsFindByReadback == true else { return .sent } // A sound request has no independently readable completion state.
+        for attempt in 0..<3 {
+            if try await readConfig(9)[0] == (enabled ? 1 : 0) { return .confirmed }
+            if attempt < 2 { try await Task.sleep(for:.milliseconds(120)) }
+        }
+        throw ProtocolError.readbackMismatch
     }
     func close() {
         active=false;ready=false;identified=false;generation=UUID();poll?.cancel();poll=nil

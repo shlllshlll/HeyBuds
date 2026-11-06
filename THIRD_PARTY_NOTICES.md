@@ -6,6 +6,7 @@ HeyBuds is distributed under **GPL-3.0-or-later**. See LICENSE.
 
 - [BudsLink](https://github.com/maniacx/BudsLink) by maniacx and contributors supplies the GPL v3 authentication algorithm/tables ported in `XiaomiMMAAuth.swift`; full license in `Licenses/BudsLink-GPL-3.0.txt`. That file is GPL-3.0-only; HeyBuds-authored code remains GPL-3.0-or-later and the combined distribution is under GPL version 3.
 - [MiBudsClient](https://github.com/CesurPolat/MiBudsClient) and [redmi-buds-bar](https://github.com/robin-liquidium/redmi-buds-bar) supply GPL v3 catalog and documented protocol facts and public test vectors. [buds-ctl](https://github.com/LeoLee0812/buds-ctl) and [MiPods](https://github.com/JackWPP/MiPods) are AGPL v3 references for interoperability facts only; no AGPL implementation or assets are included.
+- [XiaomiTWS](https://github.com/web1n/android_packages_apps_XiaomiTWS) (Apache-2.0) documents the MMA config IDs and the in-ear/gesture/find/auto-answer/model field layouts used by the Buds 4 Pro profile; it was independently reimplemented in Swift and no source code is copied. [TWS-Pods-PC](https://github.com/Zhaoyi-ya/TWS-Pods-PC) (GPL-3.0) was used only to cross-check the MMA frame layout and config semantics; no source code is copied.
 - Fixed versions, usage boundaries and further model evidence are listed in [Xiaomi provenance](docs/licenses/Xiaomi.md) and `docs/upstream-sources.json`. Upstream hardware reports do not establish HeyBuds/macOS hardware acceptance.
 
 ## OppoPodsManager

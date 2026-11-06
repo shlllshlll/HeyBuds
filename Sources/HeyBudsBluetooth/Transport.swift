@@ -4,9 +4,18 @@ import CoreBluetooth
 import HeyBudsProtocol
 
 public enum TransportEvent { case data(Data), closed(String?) }
-public enum TransportFailure: Error, LocalizedError {
+public enum TransportFailure: Error, LocalizedError, Equatable {
     case unavailable(String)
-    public var errorDescription: String? { if case .unavailable(let reason)=self { return reason }; return nil }
+    /// A control-channel open did not finish in time. Kept distinct from
+    /// `unavailable` so callers can describe the usual causes instead of
+    /// matching an English message.
+    case timedOut
+    public var errorDescription: String? {
+        switch self {
+        case .unavailable(let reason):return reason
+        case .timedOut:return "Control service connection timed out"
+        }
+    }
 }
 @MainActor public protocol EarbudTransport: AnyObject {
     var onEvent: ((TransportEvent) -> Void)? { get set }

@@ -6,7 +6,7 @@ private func desktopHex(_ text:String) -> [UInt8] { text.split(separator:" ").ma
 
 @Test func desktopCatalogRoutesAll39ModelsWithoutAliasCollisions() throws {
     let c=try ModelCatalog()
-    #expect(c.models.count == 283)
+    #expect(c.models.count == 284)
     for m in c.models where [.soundcore,.sennheiser,.jbl,.samsung,.nothing,.sony,.bose].contains(m.family) || m.id.hasPrefix("honor:") {
         for name in [m.name]+m.aliases {
             #expect(c.model(productID:nil,name:name)?.id == m.id)

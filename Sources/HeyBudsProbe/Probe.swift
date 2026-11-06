@@ -13,7 +13,7 @@ import HeyBudsBluetooth
                     ["productID":model.id,"name":model.name,"brand":model.brand,"protocolFamily":model.family.rawValue,"aliases":model.aliases,
                      "sourceAdaptation":"imported","catalogValidation":"tested",
                      "protocolFixtureCoverage":["06C410","064014","066452","06EC10"].contains(model.id) ? "representative profile" : "catalog only",
-                     "hardwareVerifiedFeatures":[String](),"noiseModes":model.noiseOptions.map { $0.mode.rawValue },
+                     "hardwareVerifiedFeatures":model.id == "xiaomi:buds4pro" ? ["battery","noise","eq","dual","autoAnswer","find","gestures","spatial","wear"] : [String](),"noiseModes":model.noiseOptions.map { $0.mode.rawValue },
                      "eqWireIDs":model.presets.map { Int($0.id) },"spatialModes":model.spatialModes.map(Int.init),
                      "customEQBands":model.customEQFrequencies,"switches":model.features.map(\.key)]
                 }

@@ -133,6 +133,152 @@
       ]
     },
     {
+      "id": "xiaomi:buds4pro",
+      "name": "Xiaomi Buds 4 Pro",
+      "brand": "Xiaomi",
+      "protocolFamily": "xiaomi",
+      "children": [],
+      "function": {
+        "xiaomiConfigIDs": [
+          11,
+          7,
+          4,
+          3,
+          2,
+          12,
+          9,
+          30
+        ],
+        "xiaomiGestureActions": {
+          "1": [
+            8,
+            1,
+            2,
+            3,
+            4,
+            5,
+            9
+          ],
+          "2": [
+            8,
+            1,
+            2,
+            3,
+            4,
+            5,
+            9
+          ],
+          "3": [
+            8,
+            1,
+            2,
+            3,
+            4,
+            5,
+            9
+          ],
+          "4": [
+            8,
+            0,
+            6
+          ],
+          "5": [
+            8,
+            0,
+            11
+          ]
+        },
+        "xiaomiWearDetection": false,
+        "gameMode": false,
+        "customEqualizer": false,
+        "customEqMax": 1,
+        "customEqFrequency": [],
+        "findDevice": true,
+        "singleBattery": false,
+        "multiDevicesConnect": true,
+        "autoAnswerCalls": true,
+        "spatialSound": true,
+        "inEarState": true,
+        "spatialTypes": []
+      },
+      "noise": [
+        {
+          "mode": "off",
+          "bytes": [
+            0,
+            0
+          ]
+        },
+        {
+          "mode": "anc",
+          "bytes": [
+            1,
+            0
+          ]
+        },
+        {
+          "mode": "light",
+          "bytes": [
+            1,
+            1
+          ]
+        },
+        {
+          "mode": "medium",
+          "bytes": [
+            1,
+            2
+          ]
+        },
+        {
+          "mode": "deep",
+          "bytes": [
+            1,
+            3
+          ]
+        },
+        {
+          "mode": "transparency",
+          "bytes": [
+            2,
+            0
+          ]
+        }
+      ],
+      "presets": [
+        {
+          "id": 0,
+          "zh": "默认",
+          "en": "Default"
+        },
+        {
+          "id": 1,
+          "zh": "人声增强",
+          "en": "Vocal enhance"
+        },
+        {
+          "id": 5,
+          "zh": "低音增强",
+          "en": "Bass boost"
+        },
+        {
+          "id": 6,
+          "zh": "高音增强",
+          "en": "Treble boost"
+        },
+        {
+          "id": 11,
+          "zh": "经典",
+          "en": "Classic"
+        },
+        {
+          "id": 12,
+          "zh": "传奇",
+          "en": "Legendary"
+        }
+      ]
+    },
+    {
       "id": "xiaomi:redmi8pro",
       "name": "Redmi Buds 8 Pro",
       "brand": "Redmi",

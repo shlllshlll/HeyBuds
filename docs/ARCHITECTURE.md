@@ -60,6 +60,6 @@ Samsung 初代使用 FE/EE 帧和独立服务；新旧状态按型号解析。Bo
 
 ## Xiaomi / Redmi 精确型号
 
-`XiaomiModels.json` 独立增加 16 条，其他运行时目录保持原字节。`XiaomiFrameCodec` 按请求/响应分别处理序列与状态字节，严格检查长度、帧尾和完整 TLV；`XiaomiCommandAuth` 必须完成双方 50/51 交换。型号规定 C0/C4、认证、BLE 或 SDP 服务和允许的配置 ID，失败不回退成未认证控制。
+`XiaomiModels.json` 独立保存 17 条，其他运行时目录保持原字节。`XiaomiFrameCodec` 按请求/响应分别处理序列与状态字节，严格检查长度、帧尾和完整 TLV；`XiaomiCommandAuth` 必须完成双方 50/51 交换。型号规定 C0/C4、认证、BLE 或 SDP 服务和允许的配置 ID，失败不回退成未认证控制。
 
-`XiaomiSession` 在设备身份核对后只读取本型号允许的字段，写操作串行并以新回读确认，超时的探测序列不会复用。手势保留另一耳及未知记录，自定义 EQ 尊重设备范围和选中状态。`XiaomiBatterySession` 只读取有界的系统蓝牙报告，精确匹配当前已连接设备，不发送 MMA 命令。总电量动态使用现有单电池显示；无系统值保持未知。详细范围见[Xiaomi 支持](XIAOMI_SUPPORT.md)。
+`XiaomiSession` 在设备身份核对后只读取本型号允许的字段，写操作串行并以新回读确认，超时的探测序列不会复用。手势保留另一耳及未知记录，自定义 EQ 尊重设备范围和选中状态。Xiaomi Buds 4 Pro 是唯一实机验证的型号：它使用电量掩码读取 DeviceInfo、以两字节配置写入降噪及强度、整表写入手势，并通过 0x001E 读回空间音频开关；这些差异由型号配置与 `XiaomiProfile` 的显式开关控制，其他型号走原有路径。Buds 4 Pro 的连接超时会单独标记为“可能被占用”，不会改试另一条 SDP 路由；其他品牌与型号的超时行为保持原样。`XiaomiBatterySession` 只读取有界的系统蓝牙报告，精确匹配当前已连接设备，不发送 MMA 命令。总电量动态使用现有单电池显示；无系统值保持未知。详细范围见[Xiaomi 支持](XIAOMI_SUPPORT.md)。

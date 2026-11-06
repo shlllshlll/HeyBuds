@@ -95,10 +95,11 @@ public struct DeviceModel: Identifiable, Sendable {
     public var gameBlocksSpatial: Bool { function["gameSoundMutexes"].elements.contains { $0.int == 1 } }
     public var gameBlocksEQ: Bool { function["gameSoundMutexes"].elements.contains { $0.int == 2 } }
     public var supportsGame: Bool { function["gameMode"].enabled || !gameTypes.isEmpty || function["gameEqualizer"].enabled }
-    public var hasSpatialSound: Bool { spatialModes.isEmpty && function["dolbyAtmos"].enabled }
+    public var hasSpatialSound: Bool { spatialModes.isEmpty && (function["dolbyAtmos"].enabled || function["spatialSound"].enabled) }
     public var features: [FeatureDefinition] {
         let list: [(String,String,UInt8)] = [("wearDetection","wear",4),("vocalEnhance","voice",9),
             ("hearingEnhancement","hearing",0x0B),("multiDevicesConnect","dual",0x11),
+            ("autoAnswerCalls","autoAnswer",0x12),
             ("longPowerMode","longBattery",0x17),("spineHealth","posture",0x22)]
         var result = list.filter { function[$0.0].enabled }.map { FeatureDefinition($0.1,$0.2) }
         if hasSpatialSound { result.append(FeatureDefinition("spatialSound",0x1B)) }

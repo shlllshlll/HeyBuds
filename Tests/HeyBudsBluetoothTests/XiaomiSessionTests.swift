@@ -11,10 +11,14 @@ import HeyBudsProtocol
     var active=false,applyWrites=true,corruptIdentity=false,corruptReadback=false,wrongTarget=false
     var corruptOtherGesture=false,wrongAuthentication=false,holdAuthentication=false
     var commands:[XiaomiFrame]=[]
-    var config:[UInt16:[UInt8]]=[11:[1,19],7:[0],4:[1],47:[0],12:[0],29:[5],2:[4,8,1,1,2,3,2,3,2,3,0,6,99,200,201]]
+    var config:[UInt16:[UInt8]]=[7:[0],4:[1],3:[0],47:[0],12:[0],29:[5],30:[0x18],9:[0,3],2:[4,8,1,1,2,3,2,3,2,3,0,6,99,200,201]]
     var wear=true
+    var batteryBytes:[UInt8]=[0xE4,90,255]
     init(_ profile:XiaomiProfile) {
         self.profile=profile
+        // The verified Buds 4 Pro declares two-byte noise modes; the other
+        // profiles keep the one-byte mode plus strength layout.
+        config[11]=profile.noiseWriteByConfig ? [1,0] : [1,19]
         var eq:[UInt8]=[1,10,6,6,1,0,10]
         for f in XiaomiProtocol.frequencies { eq += [UInt8(f >> 8),UInt8(truncatingIfNeeded:f),0] }
         config[55]=eq
@@ -40,7 +44,7 @@ import HeyBudsProtocol
                 try emit(XiaomiFrame(type:0xC0,opcode:0x50,sequence:201,payload:[1]+Array(repeating:7,count:16)))
             case 2:
                 let pid=corruptIdentity ? UInt16(0xFFFF) : profile.productIDs.sorted().first ?? 0x50F8
-                let payload:[UInt8]=[5,3,0x27,0x17,UInt8(pid >> 8),UInt8(truncatingIfNeeded:pid),5,1,0x12,0x37,0x12,0x37,4,7,0xE4,90,255]
+                let payload:[UInt8]=[5,3,0x27,0x17,UInt8(pid >> 8),UInt8(truncatingIfNeeded:pid),5,1,0x12,0x37,0x12,0x37,4,7]+batteryBytes
                 try emit(frame.reply(payload,type:wrongTarget ? 4 : frame.type & 7))
             case 9:
                 try emit(frame.reply([2,10,wear ? 0 : 1],type:frame.type & 7))
@@ -71,6 +75,8 @@ import HeyBudsProtocol
                         } else if id == 55 {
                             var reply=value;reply[2]=6;reply[3]=6;config[id]=reply
                         } else { config[id]=value }
+                        // 0x001D is the write mirror of the readable 0x001E.
+                        if id == 29,profile == .buds4pro { config[30]=value }
                     }
                 }
                 try emit(frame.reply(type:frame.type & 7))
@@ -109,6 +115,79 @@ func xiaomiEachPrivateProfileUsesItsOwnIdentityAndCapabilities(_ profile:XiaomiP
     } else if session.model?.noiseOptions.isEmpty == false {
         #expect(try await session.setNoise(.transparency) == .confirmed)
     }
+}
+
+@Test @MainActor func xiaomiBuds4ProReadsBatteryMaskAndLeavesZeroLevelsUnknown() async throws {
+    let radio=XiaomiRadio(.buds4pro),session=DeviceSession(transport:radio,name:XiaomiProfile.buds4pro.name,catalog:try ModelCatalog())
+    defer { session.close() };try await session.open();await session.initialize()
+    #expect(session.ready && session.model?.id == "xiaomi:buds4pro")
+    // The verified firmware needs no 50/51 authentication and answers the
+    // battery-only DeviceInfo mask.
+    #expect(!radio.commands.contains { $0.opcode == 0x50 })
+    #expect(radio.commands.first { $0.isRequest && $0.opcode == 2 }?.payload == [0,0,0,0x80])
+    #expect(session.state.batteries[.left]?.percent == 100 && session.state.batteries[.left]?.charging == true)
+    #expect(session.state.batteries[.right]?.percent == 90 && session.state.batteries[.right]?.charging == false)
+    #expect(session.state.batteries[.enclosure] == nil)
+    // A zero level is "no reading" on this firmware, never 0%.
+    radio.batteryBytes=[0,0,0x5B]
+    await session.refresh()
+    #expect(session.state.batteries[.left] == nil && session.state.batteries[.right] == nil)
+    #expect(session.state.batteries[.enclosure]?.percent == 91)
+}
+
+@Test @MainActor func xiaomiBuds4ProNoiseDepthIsWrittenThroughConfigEleven() async throws {
+    let radio=XiaomiRadio(.buds4pro),session=XiaomiSession(transport:radio,name:XiaomiProfile.buds4pro.name,catalog:try ModelCatalog())
+    defer { session.close() };try await session.open();await session.refresh()
+    #expect(session.state.noise == .anc)
+    #expect(session.model?.noiseOptions.contains { $0.mode == .deep } == true)
+    #expect(try await session.setNoise(.deep) == .confirmed)
+    #expect(radio.commands.contains { $0.opcode == 0xF2 && $0.payload == [4,0,11,1,3] })
+    #expect(session.state.noise == .deep)
+    #expect(try await session.setNoise(.light) == .confirmed)
+    #expect(session.state.noise == .light)
+    // The two-byte config notification carries the level and is applied ...
+    radio.onEvent?(.data(try XiaomiFrameCodec.encode(XiaomiFrame(type:0xC7,opcode:0xF4,sequence:7,payload:[4,0,11,2,0]))))
+    #expect(session.state.noise == .transparency)
+    // ... but a one-byte 0x0E mode notification cannot, so it is ignored.
+    radio.onEvent?(.data(try XiaomiFrameCodec.encode(XiaomiFrame(type:0xC7,opcode:0x0E,sequence:8,payload:[2,4,1]))))
+    #expect(session.state.noise == .transparency)
+}
+
+@Test @MainActor func xiaomiBuds4ProGestureWriteSendsTheWholeTableAndKeepsUnknownRows() async throws {
+    let radio=XiaomiRadio(.buds4pro),session=XiaomiSession(transport:radio,name:XiaomiProfile.buds4pro.name,catalog:try ModelCatalog())
+    defer { session.close() };try await session.open();await session.refresh()
+    let entry=try #require(session.state.gestures.first { $0.side == 1 && $0.gesture == 2 })
+    #expect(session.gestureActions(entry).contains(1))
+    #expect(try await session.setGesture(entry,action:1) == .confirmed)
+    let write=try #require(radio.commands.first { $0.opcode == 0xF2 && $0.payload.starts(with:[17,0,2]) })
+    // Common gesture 2 (double press) is wire type 1, so that row carries the
+    // change and the rest of the table is sent back unchanged.
+    #expect(write.payload == [17,0,2,1,1,3,2,3,2,3,0,6,4,8,1,99,200,201])
+    #expect(radio.config[2] == [1,1,3,2,3,2,3,0,6,4,8,1,99,200,201])
+    // A row whose action is not in the vocabulary still round-trips.
+    #expect(XiaomiProtocol.gestures(radio.config[2]!)?[99] == [200,201])
+}
+
+@Test @MainActor func xiaomiBuds4ProAutoAnswerSpatialAndFindNeedFreshReadback() async throws {
+    let radio=XiaomiRadio(.buds4pro),session=DeviceSession(transport:radio,name:XiaomiProfile.buds4pro.name,catalog:try ModelCatalog())
+    defer { session.close() };try await session.open();await session.initialize()
+    #expect(session.availableFeatures.contains { $0.key == "dual" })
+    let autoAnswer=try #require(session.availableFeatures.first { $0.key == "autoAnswer" })
+    let spatial=try #require(session.availableFeatures.first { $0.key == "spatialSound" })
+    #expect(session.state.switches[0x12] == false && session.state.switches[0x1B] == false)
+    #expect(session.canSetFeature(autoAnswer) && session.canSetFeature(spatial))
+    #expect(try await session.setFeature(autoAnswer,enabled:true) == .confirmed)
+    #expect(radio.commands.contains { $0.opcode == 0xF2 && $0.payload == [3,0,3,1] })
+    #expect(session.state.switches[0x12] == true)
+    #expect(try await session.setFeature(spatial,enabled:true) == .confirmed)
+    #expect(radio.commands.contains { $0.opcode == 0xF2 && $0.payload == [3,0,29,0x19] })
+    #expect(session.state.switches[0x1B] == true)
+    #expect(try await session.find(true) == .confirmed)
+    #expect(radio.commands.contains { $0.opcode == 0xF2 && $0.payload == [4,0,9,1,3] })
+    #expect(try await session.find(false) == .confirmed)
+    radio.corruptReadback=true
+    do { _ = try await session.find(false);Issue.record("Find confirmed without a fresh readback") }
+    catch { #expect(error as? ProtocolError == .invalidPayload) }
 }
 
 @Test @MainActor func xiaomiGenericACKOrMalformedReadCannotConfirmNoiseWrite() async throws {
