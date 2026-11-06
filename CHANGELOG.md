@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add Xiaomi Buds 4 Pro support after hardware verification on macOS: connection, battery/charging for both buds and the case, noise/transparency with light/medium/deep ANC levels, six EQ presets, dual-device, auto-answer, find, gestures, spatial audio and wear/in-case state, with fresh readback for every write. 新增 Xiaomi Buds 4 Pro 实机支持：连接、左右耳/盒电量与充电、降噪/通透与三档强度、6 个 EQ 预设、双设备、自动接听、查找、手势、空间音频、佩戴/入盒；每次写入都重新读取确认。
+- The Buds 4 Pro profile joins the existing Xiaomi MMA backend instead of extending the legacy family path: a model-table entry, a profile-bound session and the declared two-byte noise modes. Other Xiaomi/Redmi profiles are unchanged. Buds 4 Pro 采用既有小米 MMA 后端的型号配置与独立会话，不再扩展旧系列路径；其他 Xiaomi/Redmi 型号行为不变。
+- Detect a Xiaomi Buds 4 Pro control-channel timeout as a possibly occupied channel instead of a generic service error, and explain that the phone-side app may still hold it; the app never switches to the other SDP route, so it does not compete with the phone for the single control connection. 仅对 Xiaomi Buds 4 Pro 生效：控制通道超时时按“可能仍被手机端占用”提示，而不是笼统的服务错误；不会改试另一条 SDP 路由，避免和手机端争抢同一条控制连接。
 - Filter the paired-device list by identity rather than by name: a known Audio/Video Class of Device is accepted, a known computer/phone/LAN/peripheral/imaging/wearable class is rejected, and an unknown class requires an A2DP Sink or Hands-Free record because Bluetooth LE peripherals report no class at all. 按设备身份而不是名称筛选已配对列表：Class of Device 为音频类时接受，为电脑/手机/局域网/外设/成像/穿戴时排除；类别未知（BLE 外设常见）时要求存在 A2DP Sink 或 Hands-Free 记录。
 - Add a manual fallback listing the filtered devices, so a misjudged earbud can be added back and a misdetected device hidden; both choices persist across launches. 增加手动兜底：列出被过滤的设备，可把误判的耳机加回来、把误识别的设备隐藏，两种选择都会持久保存。
 

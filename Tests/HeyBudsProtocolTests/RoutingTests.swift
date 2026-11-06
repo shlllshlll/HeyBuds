@@ -20,7 +20,7 @@ import HeyBudsProtocol
 
 @Test func expansionUsesOnlyModelSpecificControlRoutes() throws {
     let catalog=try ModelCatalog()
-    #expect(catalog.models.count == 283)
+    #expect(catalog.models.count == 284)
     #expect(EarbudFamily.oppo.transportKinds(for:"OPPO Enco X4") == ["RFCOMM","BLE"])
     #expect(EarbudFamily.bose.transportKinds(for:"Bose QuietComfort Ultra Earbuds (2nd Gen)") == ["BLE"])
     #expect(EarbudFamily.bose.transportKinds(for:"Bose QuietComfort 45") == ["RFCOMM"])

@@ -609,6 +609,33 @@
         "README.md": "c47716b0feaf3e2e5f68ff0098b5f45a32d4db4d92a0ac8f542cb030500e94e0",
         "mibasic.py": "3a65c115a3a2225864338e1c611bd017da1a705e703c9a500ff9cc954fee0be0"
       }
+    },
+    {
+      "name": "XiaomiTWS",
+      "url": "https://github.com/web1n/android_packages_apps_XiaomiTWS",
+      "license": "Apache-2.0",
+      "commit": "0927e57cae772ac1016691b0930fb279fff51229",
+      "usage": "MMA config IDs, in-ear/gesture/find/auto-answer/model definitions and field layouts; independently reimplemented, no source code copied",
+      "sourceFiles": {
+        "src/org/lineageos/xiaomi_tws/features/DeviceModel.kt": "9dfa28fbc822d87e7821525cd97ebed3e80aea9117aa4c13edc7bff5fb1dd5cd",
+        "src/org/lineageos/xiaomi_tws/mma/ConfigData.kt": "7422e78304577f3f872ed01249051f110a8eec834cf6ff0c397ef61123f8ebcc",
+        "src/org/lineageos/xiaomi_tws/mma/configs/InEarState.kt": "ce802e9f15205c411fc729f6bc13f9c333ad32f735e8338f1fe24608bc863ff1",
+        "src/org/lineageos/xiaomi_tws/mma/configs/Gesture.kt": "0fc3f3d911b4f7c06cf16162a05e6d17e7de32ecc36ea4ba32fedb46fe1f3971",
+        "src/org/lineageos/xiaomi_tws/mma/configs/FindEarbuds.kt": "45231046622638ca6f941f09c2c72edac95feb63c685aa2acb78c257d16009e1",
+        "src/org/lineageos/xiaomi_tws/mma/configs/AutoAnswerCalls.kt": "623d8f7d781705802db83730ac80cc425efdf69508b7bcab3163d12d56b679f1",
+        "src/org/lineageos/xiaomi_tws/mma/configs/MultiConnect.kt": "7e0104a8974417bdf93a43ebc02e1bf3c4a1ee1a8ffd136d6eb4069a13c8ed78",
+        "src/org/lineageos/xiaomi_tws/mma/configs/EqualizerMode.kt": "61f071d187756f628688134ded2db341d0af089327e4dc7aabc673bda08f1662"
+      }
+    },
+    {
+      "name": "TWS-Pods-PC",
+      "url": "https://github.com/Zhaoyi-ya/TWS-Pods-PC",
+      "license": "GPL-3.0",
+      "commit": "3350f424c1ab69c4bc6cff92dd7b603fb0025db2",
+      "usage": "Xiaomi MMA frame layout and config semantics cross-check; no source code copied",
+      "sourceFiles": {
+        "xiaomi/PROTOCOL.md": "c408505f89499ef9a7e41bb2a53e597a289c10efcda7d36cda11a48acbec74e9"
+      }
     }
   ],
   "referenceFileSHA256": {
@@ -685,7 +712,7 @@
     "Sources/HeyBudsProtocol/Resources/SonyModels.json": "d0dfac070222999930275c50bbdb2d2ff5b4331430ed33573fbbe914dae95264",
     "Sources/HeyBudsProtocol/Resources/ExpansionModels.json": "1976f003f80bd1f23de4087abe718acb5dd6d269267532f784cedbc0dcc5c186",
     "Sources/HeyBudsProtocol/Resources/DesktopModels.json": "bd6030ba1becf8e15b69e8b27bd2c7f832523bd7dfab273c210743c3c7e1f596",
-    "Sources/HeyBudsProtocol/Resources/XiaomiModels.json": "239677d7e58db7c3c4a3355f48cef7e35f8a22c1323a905fb884dabc393c33a9"
+    "Sources/HeyBudsProtocol/Resources/XiaomiModels.json": "1a927edd5128bc3a682b11ca25bceb714d01bc177cc7386cf18339d3ef0702f1"
   },
   "referenceResourceSHA256": {
     "docs/reference/VivoDeviceModels.json": "9f6b95482058a6b63944bc1564a8721b253b432794075f0b81b1b840a9ce1d3b",

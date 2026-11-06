@@ -122,7 +122,7 @@ private func expansionHex(_ text:String) -> [UInt8] {
 
 @Test func expansionCatalogKeepsOriginalRoutingAndAddsExactNewModelNames() throws {
     let catalog=try ModelCatalog()
-    #expect(catalog.models.count == 283)
+    #expect(catalog.models.count == 284)
     #expect(Set(catalog.models.map(\.id)).count == catalog.models.count)
     for (name,id,family) in [
         ("Galaxy Buds2","samsung:buds2","samsung"),

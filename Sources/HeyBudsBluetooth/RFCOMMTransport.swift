@@ -22,6 +22,11 @@ import HeyBudsProtocol
     private var sdpPoll:Task<Void,Never>?
     private var channelOpening=false
     private var isClosing=false
+    /// Only the verified Buds 4 Pro profile distinguishes an open timeout from a
+    /// generic failure. Dual-connection firmware allows one control channel at a
+    /// time, so a timeout most often means the phone-side app still holds it.
+    /// No other brand's error text or behaviour changes.
+    private var reportsOccupiedChannel=false
 
     public init(address: String,serviceUUID:String?="0000079A-D102-11E1-9B23-00025B00A5A5") throws {
         guard let device=IOBluetoothDevice(addressString:address) else { throw ProtocolError.disconnected }
@@ -37,6 +42,7 @@ import HeyBudsProtocol
         guard !xiaomi.systemBatteryOnly,let service=xiaomi.services.first else { throw ProtocolError.unsupported }
         try self.init(address:address,serviceUUID:service)
         alternativeServices=Array(xiaomi.services.dropFirst())
+        reportsOccupiedChannel = xiaomi == .buds4pro
     }
     public convenience init(address:String,bose:BoseProfile) throws {
         try self.init(address:address,serviceUUID:BoseProfile.bmapServiceUUID)
@@ -73,8 +79,10 @@ import HeyBudsProtocol
                 opening=continuation
                 timeout=Task { [weak self] in
                     try? await Task.sleep(for:.seconds(10))
-                    guard !Task.isCancelled else { return }
-                    self?.failOpen(TransportFailure.unavailable("Control service connection timed out"))
+                    guard !Task.isCancelled, let self else { return }
+                    self.failOpen(self.reportsOccupiedChannel
+                        ? TransportFailure.timedOut
+                        : TransportFailure.unavailable("Control service connection timed out"))
                 }
                 if let modelChannel { openChannel(modelChannel); return }
                 // Cached records alone are insufficient on some firmware. Refresh using the SDK callback.

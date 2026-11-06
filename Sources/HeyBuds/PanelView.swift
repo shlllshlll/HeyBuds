@@ -355,7 +355,7 @@ struct PanelView: View {
         canAdjustEQ || canCustomizeEQ || canAdjustBass || canAdjustSpatial || availableFeature("spatialSound") != nil || availableFeature("voice") != nil
     }
     private var hasGameControls:Bool { gameFeature != nil || canAdjustGameSound }
-    private var hasEarbudControls:Bool { availableFeature("wear") != nil || !configurableGestures.isEmpty || canFind }
+    private var hasEarbudControls:Bool { availableFeature("wear") != nil || availableFeature("autoAnswer") != nil || !configurableGestures.isEmpty || canFind }
     private var assistanceFeatures:[FeatureDefinition] { ["hearing","hearingProtection","posture"].compactMap(availableFeature) }
     @ViewBuilder private var soundControls:some View {
         if canAdjustEQ { eqPicker }
@@ -418,8 +418,12 @@ struct PanelView: View {
         if let wear=availableFeature("wear") {
             featureToggle(wear,title:L("佩戴检测","In-ear detection"),detail:nil,symbol:"ear")
         }
+        if let auto=availableFeature("autoAnswer") {
+            if availableFeature("wear") != nil { Divider() }
+            featureToggle(auto,title:featureLabel(auto.key),detail:nil,symbol:"phone")
+        }
         ForEach(configurableGestures) { entry in
-            if availableFeature("wear") != nil || entry.id != configurableGestures.first?.id { Divider() }
+            if availableFeature("wear") != nil || availableFeature("autoAnswer") != nil || entry.id != configurableGestures.first?.id { Divider() }
             HStack(spacing:10) {
                 Text((entry.side == 1 ? L("左耳 · ","Left · ") : L("右耳 · ","Right · "))+gestureLabel(entry.gesture))
                 Spacer(minLength:8)
@@ -430,7 +434,7 @@ struct PanelView: View {
             }.padding(.vertical,6)
         }
         if canFind {
-            if availableFeature("wear") != nil || !configurableGestures.isEmpty { Divider() }
+            if availableFeature("wear") != nil || availableFeature("autoAnswer") != nil || !configurableGestures.isEmpty { Divider() }
             HStack {
                 Button(L("查找耳机","Find earbuds")) { findConfirmation=true }
                 Spacer()
@@ -992,12 +996,13 @@ func featureLabel(_ key:String) -> String {
     case "hearing":return L("听力增强","Hearing enhancement")
     case "longBattery":return L("长续航模式","Long battery mode")
     case "posture":return L("颈椎健康提醒","Posture reminders")
+    case "autoAnswer":return L("自动接听","Auto answer")
     case "spatialSound":return L("空间音效","Spatial sound")
     default:return key
     }
 }
 func gestureLabel(_ value:UInt8) -> String { [1:L("单击","Single press"),2:L("双击","Double press"),3:L("三击","Triple press"),4:L("长按","Hold"),5:L("滑动","Swipe")][Int(value)] ?? L("手势 ","Gesture ")+String(value) }
 func actionLabel(_ value:UInt8,family:EarbudFamily?=nil) -> String {
-    if family == .xiaomi,let label=[0x30:L("增大音量","Volume up"),0x31:L("减小音量","Volume down"),0x32:L("切换降噪模式","Cycle noise modes")][Int(value)] { return label }
+    if family == .xiaomi,let label=[0x30:L("增大音量","Volume up"),0x31:L("减小音量","Volume down"),0x32:L("切换降噪模式","Cycle noise modes"),0x33:L("截图","Screenshot")][Int(value)] { return label }
     return [0:L("无","None"),1:L("播放／暂停","Play / pause"),3:L("语音助手","Voice assistant"),5:L("上一首","Previous track"),6:L("下一首","Next track"),7:L("音量","Volume"),10:L("切换歌曲","Skip track"),17:L("游戏模式","Game mode")][Int(value)] ?? L("操作 ","Action ")+String(value)
 }

@@ -234,6 +234,7 @@ This list follows the current app catalog. Duplicate display names are merged an
 
 ## Xiaomi / Redmi
 
+- Xiaomi Buds 4 Pro（实机验证 / hardware-verified：电量与充电、降噪/通透含三档强度、6 个 EQ 预设、双设备、自动接听、查找、手势、空间音频、佩戴/入盒）
 - Xiaomi Buds 5 Pro（蓝牙版 / Bluetooth edition）
 - Redmi Buds 8 Pro
 - Redmi Buds 8 Lite
@@ -251,7 +252,7 @@ This list follows the current app catalog. Duplicate display names are merged an
 - Redmi Buds 3（系统电量 / system battery）
 - Mi True Wireless Earbuds Basic S（TWSEJ05LS，系统电量 / system battery）
 
-逐型号功能见[Xiaomi / Redmi 支持](XIAOMI_SUPPORT.md)。旧系列识别保留；未列型号不继承以上控制能力。 / See the model-specific scope. Legacy family detection remains separate.
+逐型号功能见[Xiaomi / Redmi 支持](XIAOMI_SUPPORT.md)。Xiaomi Buds 4 Pro 是当前唯一完成 HeyBuds/macOS 实机验收的型号；其他型号仍为模拟协议接入。旧系列识别保留；未列型号不继承以上控制能力。 / See the model-specific scope. Xiaomi Buds 4 Pro is the only model with HeyBuds/macOS hardware acceptance; the others remain simulated-protocol coverage. Legacy family detection remains separate.
 
 ## 其他音频设备 / Other audio devices
 

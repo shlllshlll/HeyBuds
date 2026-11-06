@@ -4,7 +4,7 @@ import Foundation
 
 /// Explicitly requested models only. A family-name match never enables this backend.
 public enum XiaomiProfile:String,CaseIterable,Sendable {
-    case buds5pro,redmi8pro,redmi8lite,redmi8,redmi8active
+    case buds5pro,buds4pro,redmi8pro,redmi8lite,redmi8,redmi8active
     case redmi6pro,redmi6lite,redmi6play,redmi5pro,redmi5
     case clip,redmi6,redmi6active,redmi4pro,redmi3,basicS
 
@@ -12,6 +12,7 @@ public enum XiaomiProfile:String,CaseIterable,Sendable {
     public var name:String {
         switch self {
         case .buds5pro:return "Xiaomi Buds 5 Pro"
+        case .buds4pro:return "Xiaomi Buds 4 Pro"
         case .clip:return "Xiaomi 耳夹式耳机"
         case .basicS:return "Mi True Wireless Earbuds Basic S"
         default:
@@ -37,7 +38,27 @@ public enum XiaomiProfile:String,CaseIterable,Sendable {
     public var controls:Bool { !systemBatteryOnly && self != .clip }
     public var transportKinds:[String] { systemBatteryOnly ? ["System"] : [.buds5pro,.clip].contains(self) ? ["BLE"] : ["RFCOMM"] }
     public var requestType:UInt8 { self == .redmi8pro ? 0xC0 : 0xC4 }
-    public var requiresAuthentication:Bool { !systemBatteryOnly && ![.clip,.redmi8pro,.redmi6lite].contains(self) }
+    public var requiresAuthentication:Bool { !systemBatteryOnly && ![.clip,.redmi8pro,.redmi6lite,.buds4pro].contains(self) }
+    /// The Buds 4 Pro profile carries the only hardware-verified layout in this
+    /// backend (macOS 27.0, earbud firmware 2.5.7.4). Each switch keeps the
+    /// other profiles on the documented MMA path.
+    ///
+    /// - DeviceInfo was read with a battery-only mask; the reply still carried
+    ///   the model name, firmware and an identity record, but no product ID was
+    ///   recorded, so this model cannot be validated by VID/PID yet.
+    /// - Noise is written as config `0x000B` `[mode, level]`; light/medium/deep
+    ///   are separate modes in the model table, not a strength-only command.
+    /// - Gestures are written as the whole triple table, so a side the device
+    ///   reports as unassigned stays `0xFF` instead of being rewritten.
+    /// - Auto answer is config `0x0003`, the spatial toggle is written to
+    ///   `0x001D` and read back from `0x001E`, and a find request is confirmed
+    ///   from `0x0009`.
+    public var deviceInfoMask:[UInt8] { self == .buds4pro ? [0,0,0,0x80] : [255,255,255,255] }
+    public var validatesProductID:Bool { self != .buds4pro }
+    public var zeroBatteryIsUnknown:Bool { self == .buds4pro }
+    public var noiseWriteByConfig:Bool { self == .buds4pro }
+    public var writesWholeGestureTable:Bool { self == .buds4pro }
+    public var confirmsFindByReadback:Bool { self == .buds4pro }
     public static let service="0000FD2D-0000-1000-8000-00805F9B34FB"
     public static let miwearService="DF21FE2C-2515-4FDB-8886-F12C4D67927C"
     public static let bleService="0000AF00-0000-1000-8000-00805F9B34FB"
@@ -64,7 +85,7 @@ public enum XiaomiProfile:String,CaseIterable,Sendable {
         }
     }
     public func accepts(vendor:UInt16,product:UInt16) -> Bool {
-        vendor == 0x2717 && (self == .clip || productIDs.contains(product))
+        vendor == 0x2717 && (self == .clip || self == .buds4pro || productIDs.contains(product))
     }
     public func presentationModel(_ model:DeviceModel,aggregateBattery:Bool) -> DeviceModel {
         guard systemBatteryOnly,case .object(var raw)=model.raw,
@@ -166,6 +187,15 @@ public enum XiaomiProtocol {
         guard value.count == 2 else { return nil }
         return [UInt8(0):NoiseMode.off,1:.anc,2:.transparency][value[0]]
     }
+    /// Resolve the two-byte config value against the model's declared modes.
+    /// A model that declares `[1]` keeps the historical mode-only meaning; a
+    /// model that declares `[1,1]`/`[1,2]`/`[1,3]` distinguishes ANC levels, so
+    /// a readback does not collapse light/medium/deep into plain ANC.
+    public static func noise(_ value:[UInt8],options:[NoiseOption]) -> NoiseMode? {
+        guard value.count == 2 else { return nil }
+        let matching=options.filter { $0.writeBytes.first == value[0] && ($0.writeBytes.count < 2 || $0.writeBytes[1] == value[1]) }
+        return (matching.first { $0.writeBytes.count == 2 } ?? matching.first)?.mode
+    }
     public static func gestures(_ value:[UInt8]) -> [UInt8:[UInt8]]? {
         guard !value.isEmpty,value.count % 3 == 0 else { return nil }
         var result:[UInt8:[UInt8]]=[:]
@@ -178,7 +208,9 @@ public enum XiaomiProtocol {
     public static func gestureType(_ common:UInt8) -> UInt8? { [UInt8(1):4,2:1,3:2,4:3,5:5][common] }
     public static func commonGesture(_ wire:UInt8) -> UInt8? { [UInt8(4):1,1:2,2:3,3:4,5:5][wire] }
     // Shared UI actions are deliberately distinct from Xiaomi wire values.
-    public static let actionToWire:[UInt8:UInt8]=[0:8,1:1,3:0,5:2,6:3,7:11,17:7,0x30:4,0x31:5,0x32:6]
+    // 0x33 is reserved for wire 9 (screenshot), observed only on the verified
+    // Buds 4 Pro gesture table; other profiles never list 9 as an allowed action.
+    public static let actionToWire:[UInt8:UInt8]=[0:8,1:1,3:0,5:2,6:3,7:11,17:7,0x30:4,0x31:5,0x32:6,0x33:9]
     public static func commonAction(_ wire:UInt8) -> UInt8? { actionToWire.first { $0.value == wire }?.key }
     public static func gestureEntries(_ value:[UInt8],model:DeviceModel) -> [GestureEntry] {
         guard let rows=gestures(value) else { return [] }

@@ -7,7 +7,7 @@
 | OPPO / OnePlus / realme | 138 个产品 ID：57 / 32 / 49 | RFCOMM / BLE、电量、降噪、EQ、空间与游戏音效、多设备 |
 | vivo / iQOO | 43 个显示型号，保留 87 条原始配置与项目代号 | GAIA、电量、佩戴、固件、降噪、EQ、游戏、空间音频、查找、多设备 |
 | HUAWEI / HONOR | 27 个型号路由及别名 | 华为 Legacy TLV 原有功能；荣耀三款沿用 FreeBuds 4i 配置 |
-| Xiaomi / Redmi | 16 个精确型号及保留的 1 条系列规则 | 10 款按型号提供 MMA 控制，6 款仅基础信息/电量；旧系列后端独立保留 |
+| Xiaomi / Redmi | 17 个精确型号及保留的 1 条系列规则 | 11 款按型号提供 MMA 控制（Buds 4 Pro 已实机验证），6 款仅基础信息/电量；旧系列后端独立保留 |
 | EDIFIER | W820NB / W200BT / EDIFIER，共 3 条规则 | SPP 电量及降噪；纯 BLE 型号未接入 |
 | Sony | 12 个型号 | MDR V1/V2、电量、降噪与设备允许的通透参数 |
 | Samsung | 13 个型号 | 新旧两代帧、电量、按型号开放噪声模式与预设 EQ |
@@ -18,7 +18,7 @@
 | Sennheiser | 2 个型号 | GAIA、电量、降噪、EQ、佩戴、设备列表；写入受固件限制 |
 | JBL | 3 个型号 | BLE / RACE 降噪，Wave Buds 2 电量 |
 
-合计 283 条记录，包含产品 ID、显示型号和系列规则，不等于 283 款实机通过。新增 39 款的逐组功能和来源见[桌面项目扩展](DESKTOP_EXPANSION.md)，小米新增 16 款见[Xiaomi / Redmi 支持](XIAOMI_SUPPORT.md)。完整名称见[型号清单](SUPPORTED_DEVICES.md)；机器可读目录可运行 `swift run heybuds-probe catalog` 生成，不在文档中重复存储。
+合计 284 条记录，包含产品 ID、显示型号和系列规则，不等于 284 款实机通过。新增 39 款的逐组功能和来源见[桌面项目扩展](DESKTOP_EXPANSION.md)，小米新增 17 款见[Xiaomi / Redmi 支持](XIAOMI_SUPPORT.md)。完整名称见[型号清单](SUPPORTED_DEVICES.md)；机器可读目录可运行 `swift run heybuds-probe catalog` 生成，不在文档中重复存储。
 
 原始资源与指纹见[上游来源](UPSTREAM.md)。vivo 原表保留在 `docs/reference/VivoDeviceModels.json`，归一化目录保留所有 `sourceEntries`；华为能力来自 `HuaweiModels.cs`。导入工具为 `scripts/import-brand-models.py`。
 
@@ -69,7 +69,9 @@ Nothing Ear (a)、Headphone (1)、CMF Buds 2、CMF Buds Pro 2 使用独立型号
 
 ## Xiaomi / Redmi
 
-16 个明确型号及逐项能力见[小米支持范围](XIAOMI_SUPPORT.md)。控制型号使用独立 MMA 编解码、按型号选择认证和服务，并核对设备身份；基础型号不会开放猜测设置。8 Active / 6 Play 不提供 ANC。8 Pro 使用 Mac C0 端点的配置回读，6 Lite 使用新通知确认降噪；其他可读设置都必须新回读一致。系统未提供电量时保持未知，只有总电量时显示单项“耳机”。所有新增型号仍需 HeyBuds/macOS 实机验收。
+17 个明确型号及逐项能力见[小米支持范围](XIAOMI_SUPPORT.md)。控制型号使用独立 MMA 编解码、按型号选择认证和服务，并核对设备身份；基础型号不会开放猜测设置。8 Active / 6 Play 不提供 ANC。8 Pro 使用 Mac C0 端点的配置回读，6 Lite 使用新通知确认降噪；其他可读设置都必须新回读一致。系统未提供电量时保持未知，只有总电量时显示单项“耳机”。
+
+Xiaomi Buds 4 Pro 已在 HeyBuds/macOS 实机验证（2026-10-31，macOS 27.0，耳机固件 2.5.7.4）：连接、左右耳/盒电量与充电、降噪/通透与轻/中/深三档强度、6 个 EQ 预设、双设备、自动接听、查找、左右耳手势、空间音频、佩戴/入盒状态；每次写入都重新读取确认。该型号使用 DeviceInfo 的电量掩码读取电量，电量值为 0 视为“无读数”而不是 0%；不执行 50/51 双向认证，也不开放自定义 EQ、低延迟和个性化降噪（该固件无有效回读）。双设备连接时如果手机端耳机 App 仍占用控制通道，连接超时会明确提示先释放手机端；不会改试另一条 SDP 路由。其余 Xiaomi/Redmi 型号仍需 HeyBuds/macOS 实机验收。
 
 ## 功能限制
 
@@ -77,7 +79,7 @@ Nothing Ear (a)、Headphone (1)、CMF Buds 2、CMF Buds Pro 2 使用独立型号
 - T500 Pro 使用 MIT 参考中的独立降噪映射。OPPO 现有短帧单帧负载最多 248 字节，不猜测扩展编码。
 - vivo TWS 3e 的强制双连不提供开关；其他 vivo 型号没有使能状态回读时保留未知，不用设备列表推断开关。
 - 华为标准 SPP 必须结合型号识别和有效响应，不使用猜测通道。未解释的 MBB 分片不作为设置状态。
-- 小米配置字段仍需实机核对；通用 ACK 不视为设置成功。
+- 未验证的小米型号配置字段仍需实机核对；通用 ACK 不视为设置成功。
 - OTA、解除配对、健康测量、依赖手机服务及上游未开放的功能不属于当前范围。
 
 ## 证据与验收

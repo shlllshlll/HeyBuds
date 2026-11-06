@@ -47,3 +47,14 @@ These references establish protocol and model evidence. Their hardware observati
 The following 39-model expansion uses fixed Windows/Linux reference revisions: OpenSCQ30 for Soundcore, momentum4-control for Sennheiser, Omaphones/JBL Control/770NC Windows Controller for JBL, OpenFreebuds for HONOR, SonyHeadphonesClient/Sound Connect for Sony and QC35, GalaxyBudsClient for Samsung, and ear-web/Omaphones for Nothing/CMF. The [model-level scope and source table](DESKTOP_EXPANSION.md) links the pinned versions; additional read-file fingerprints are in `upstream-sources.json`.
 
 OpenSCQ30 preset curves and encoding are adapted under GPL-3.0-or-later. MIT notices and other GPL texts are retained in `Licenses/`. ear-web's conflicting AGPL/GPL declarations remain unresolved: only interoperability facts were used, with no implementation or assets copied. Source inspection is explicitly acknowledged in [Nothing provenance](licenses/Nothing.md). No upstream hardware observation is promoted to a HeyBuds/macOS result.
+
+## Xiaomi Buds 4 Pro references
+
+The verified Buds 4 Pro profile adds two references to the Xiaomi set above. Both supplied protocol and field-layout facts only; the Swift code is independently written.
+
+| Reference | License | Use |
+| --- | --- | --- |
+| [XiaomiTWS](https://github.com/web1n/android_packages_apps_XiaomiTWS) | Apache-2.0 | MMA config IDs and in-ear/gesture/find/auto-answer/model field layouts; independently reimplemented, no source code copied |
+| [TWS-Pods-PC](https://github.com/Zhaoyi-ya/TWS-Pods-PC) | GPL-3.0 | MMA frame layout and config semantics cross-check; no source code copied |
+
+The profile was verified on macOS with a physical device (firmware 2.5.7.4); the fingerprint table in [upstream-sources.json](upstream-sources.json) pins XiaomiTWS `0927e57c` and TWS-Pods-PC `3350f424`. Neither repository changed between the reference read and the hardware run.

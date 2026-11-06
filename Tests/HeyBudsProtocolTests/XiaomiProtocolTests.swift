@@ -9,9 +9,9 @@ private func xbytes(_ hex:String) -> [UInt8] {
     }
 }
 
-@Test func xiaomiCatalogHasOnlyTheSixteenRequestedModelsAndNoInferredVariants() throws {
+@Test func xiaomiCatalogHasOnlyTheSeventeenRequestedModelsAndNoInferredVariants() throws {
     let catalog=try ModelCatalog()
-    #expect(XiaomiProfile.allCases.count == 16)
+    #expect(XiaomiProfile.allCases.count == 17)
     for profile in XiaomiProfile.allCases {
         let model=try #require(catalog.model(productID:nil,name:profile.name))
         #expect(model.id == profile.modelID && model.family == .xiaomi)
@@ -29,6 +29,17 @@ private func xbytes(_ hex:String) -> [UInt8] {
         let model=try #require(catalog.models.first { $0.id == profile.modelID })
         #expect(model.noiseOptions.isEmpty)
     }
+    // The only hardware-verified profile: no PID is recorded, so a reported
+    // identity cannot select or reject it, and the battery level is read with a
+    // battery-only DeviceInfo mask.
+    let buds4pro=try #require(catalog.model(productID:nil,name:"Xiaomi Buds 4 Pro"))
+    #expect(buds4pro.id == XiaomiProfile.buds4pro.modelID && buds4pro.family == .xiaomi)
+    #expect(buds4pro.noiseOptions.map(\.mode) == [.off,.anc,.light,.medium,.deep,.transparency])
+    #expect(buds4pro.noiseOptions.map(\.writeBytes) == [[0,0],[1,0],[1,1],[1,2],[1,3],[2,0]])
+    #expect(buds4pro.presets.map(\.id) == [0,1,5,6,11,12])
+    #expect(!XiaomiProfile.buds4pro.validatesProductID && !XiaomiProfile.buds4pro.requiresAuthentication)
+    #expect(XiaomiProfile.buds4pro.deviceInfoMask == [0,0,0,0x80])
+    #expect(XiaomiProfile.buds4pro.services == [XiaomiProfile.service,"00001101-0000-1000-8000-008584D01810"])
     #expect(EarbudFamily.xiaomi.transportKinds(for:"Redmi Buds legacy") == ["RFCOMM"])
     #expect(catalog.validOverride("xiaomi:family",family:.xiaomi) == "xiaomi:family")
     #expect(EarbudFamily.oppo.transportKinds(for:"OPPO Enco X4") == ["RFCOMM","BLE"])
@@ -49,6 +60,25 @@ private func xbytes(_ hex:String) -> [UInt8] {
     #expect(fields[11] == [1,19] && XiaomiProtocol.noise(fields[11]!) == .anc)
     let refused=XiaomiFrame(type:0,opcode:0xF3,sequence:2,status:9)
     #expect(codec.feed(try XiaomiFrameCodec.encode(refused)).first?.status == 9)
+}
+
+@Test func xiaomiNoiseLevelsResolveAgainstTheModelTableAndScreenshotHasACommonAction() throws {
+    let catalog=try ModelCatalog()
+    let model=try #require(catalog.model(productID:nil,name:"Xiaomi Buds 4 Pro"))
+    #expect(XiaomiProtocol.noise([1,0],options:model.noiseOptions) == .anc)
+    #expect(XiaomiProtocol.noise([1,1],options:model.noiseOptions) == .light)
+    #expect(XiaomiProtocol.noise([1,2],options:model.noiseOptions) == .medium)
+    #expect(XiaomiProtocol.noise([1,3],options:model.noiseOptions) == .deep)
+    #expect(XiaomiProtocol.noise([1,4],options:model.noiseOptions) == nil)
+    // A mode-only table keeps the historical collapse to plain ANC.
+    #expect(XiaomiProtocol.noise([1,19],options:[NoiseOption(mode:.anc,writeBytes:[1])]) == .anc)
+    #expect(XiaomiProtocol.commonAction(9) == 0x33 && XiaomiProtocol.actionToWire[0x33] == 9)
+    #expect(XiaomiProtocol.commonAction(11) == 7)
+    let entries=XiaomiProtocol.gestureEntries([1,3,3,2,2,2,3,6,6],model:model)
+    #expect(entries.count == 6)
+    #expect(entries.contains { $0.side == 2 && $0.gesture == 4 && $0.action == 0x32 })
+    // Rows whose gesture or action is outside the vocabulary are not invented.
+    #expect(XiaomiProtocol.gestureEntries([9,1,1],model:model).isEmpty)
 }
 
 @Test func xiaomiStreamHandlesEveryFragmentBoundaryAndRejectsMalformedLengths() throws {

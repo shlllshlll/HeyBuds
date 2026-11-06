@@ -34,7 +34,7 @@ Check battery levels, switch noise modes, adjust sound and manage connected devi
 | OPPO / OnePlus / realme | Battery, noise control, EQ, spatial and gaming audio, connected devices |
 | vivo / iQOO | Battery, noise control, EQ, spatial and gaming audio, connected devices |
 | HUAWEI / HONOR | Existing Huawei features; HONOR Earbuds 2 / 2 SE / 2 Lite use the FreeBuds 4i profile |
-| Xiaomi / Redmi | 16 explicit models: 10 with model-specific noise/EQ/gesture controls and 6 for read-only information/battery; see [scope](docs/XIAOMI_SUPPORT.md) |
+| Xiaomi / Redmi | 17 explicit models: 11 with model-specific noise/EQ/gesture controls and 6 for read-only information/battery; Buds 4 Pro is hardware-verified, see [scope](docs/XIAOMI_SUPPORT.md) |
 | EDIFIER | Battery and noise control for supported SPP families |
 | Soundcore | Q30 / Q35 / Q45 / Space One Pro / Liberty 4 NC / 4 Pro / 5: battery, noise control, preset/custom EQ; dual-connect switch on selected models |
 | Sennheiser | MOMENTUM 4 / 5: battery, noise control, EQ, wear detection and peer list; M5 writes limited to firmware 6.21.5 |
@@ -45,7 +45,7 @@ Check battery levels, switch noise modes, adjust sound and manage connected devi
 | Nothing / CMF | 11 models with battery and preset EQ; basic noise modes where supported, no noise control on Ear (stick) |
 | Sony | 12 models with battery and noise control; WF-C700N noise writes limited to firmware 2.0.7, no ambient-level control on ULT WEAR |
 
-The [39-model expansion](docs/DESKTOP_EXPANSION.md) is joined by [16 explicit Xiaomi / Redmi profiles](docs/XIAOMI_SUPPORT.md), bringing the catalog to 283 entries. New models have initial protocol support; HeyBuds/macOS hardware compatibility remains unverified.
+The [39-model expansion](docs/DESKTOP_EXPANSION.md) is joined by [17 explicit Xiaomi / Redmi profiles](docs/XIAOMI_SUPPORT.md), bringing the catalog to 284 entries. Only Xiaomi Buds 4 Pro has been verified on macOS hardware; the other new models have initial protocol support and remain unverified.
 
 Features depend on the model, firmware and device responses. See the [model list](https://github.com/abaichuan1017/HeyBuds/blob/main/docs/SUPPORTED_DEVICES.md) and [compatibility notes](https://github.com/abaichuan1017/HeyBuds/blob/main/docs/COMPATIBILITY.md).
 
